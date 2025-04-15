@@ -1,0 +1,5554 @@
+openapi: 3.0.3
+info:
+  title: API Instituciones Educativas Colombia
+  description: API para gestión de instituciones educativas públicas en Colombia
+  version: 1.0.0
+servers:
+- url: https://virtserver.swaggerhub.com/edalmava-030/sia/1.0.0
+  description: SwaggerHub API Auto Mocking
+tags:
+- name: Instituciones
+  description: Operaciones con instituciones educativas
+- name: Sedes
+  description: Gestión de sedes por institución
+- name: Grados
+  description: Gestión de grados académicos
+- name: Grupos
+  description: Gestión de grupos por grado
+- name: Jornadas
+  description: Gestión de jornadas escolares
+- name: Asignaturas
+  description: Gestión de asignaturas académicas
+- name: Estudiantes
+  description: Administración de estudiantes
+- name: Docentes
+  description: Gestión de docentes
+- name: Carga Académica
+  description: Gestión de cargas académicas para docentes
+- name: Matricula
+  description: Gestión de matrículas de estudiantes
+- name: Evaluaciones
+  description: Operaciones relacionadas con evaluaciones académicas
+- name: Calificaciones
+  description: Gestión de calificaciones de estudiantes
+- name: Asistencia
+  description: Control de asistencia de estudiantes
+- name: Observaciones
+  description: Registro de observaciones de comportamiento
+- name: Usuarios
+  description: Gestión de usuarios del sistema
+- name: Periodos
+  description: Gestión de periodos académicos
+- name: Año Lectivo
+  description: Gestión de años lectivos
+- name: Acudientes
+  description: Gestión de acudientes de estudiantes
+- name: Competencias
+  description: Gestión de competencias académicas
+- name: Logros
+  description: Gestión de logros académicos
+- name: Horarios
+  description: Gestión de horarios escolares
+paths:
+  /instituciones:
+    get:
+      tags:
+      - Instituciones
+      summary: Obtener todas las instituciones
+      parameters:
+      - name: offset
+        in: query
+        description: Número de registros a omitir para paginación
+        required: false
+        style: form
+        explode: true
+        schema:
+          minimum: 0
+          type: integer
+          default: 0
+      - name: limit
+        in: query
+        description: Número máximo de registros a devolver
+        required: false
+        style: form
+        explode: true
+        schema:
+          maximum: 100
+          minimum: 1
+          type: integer
+          default: 20
+      - name: sort
+        in: query
+        description: |
+          Campo(s) por los cuales ordenar los resultados. Separar múltiples campos por comas. Prefijar con '-' para orden descendente (ej: "nombre,-fecha_creacion"). Los campos disponibles dependen del recurso solicitado.
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+        example: "nombre,-fecha_registro"
+      - name: nombre
+        in: query
+        description: Filtrar por nombre
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Lista de instituciones
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+    post:
+      tags:
+      - Instituciones
+      summary: Crear nueva institución
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Institucion"
+        required: true
+      responses:
+        "201":
+          description: Institución creada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Institucion"
+        "400":
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+      security:
+      - bearerAuth: []
+  /instituciones/{id}:
+    get:
+      tags:
+      - Instituciones
+      summary: Obtener una institución por ID
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "200":
+          description: Detalle de la institución
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Institucion"
+        "401":
+          description: No autorizado
+        "404":
+          description: Institución no encontrada
+    put:
+      tags:
+      - Instituciones
+      summary: Actualizar una institución
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Institucion"
+        required: true
+      responses:
+        "200":
+          description: Institución actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Institucion"
+        "400":
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+        "404":
+          description: Institución no encontrada
+      security:
+      - bearerAuth: []
+    delete:
+      tags:
+      - Instituciones
+      summary: Eliminar una institución
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "204":
+          description: Institución eliminada
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+        "404":
+          description: Institución no encontrada
+        "409":
+          description: No se puede eliminar la institución por tener dependencias
+      security:
+      - bearerAuth:
+        - admin
+  /sedes:
+    get:
+      tags:
+      - Sedes
+      summary: Obtener todas las sedes
+      parameters:
+      - name: offset
+        in: query
+        description: Número de registros a omitir para paginación
+        required: false
+        style: form
+        explode: true
+        schema:
+          minimum: 0
+          type: integer
+          default: 0
+      - name: limit
+        in: query
+        description: Número máximo de registros a devolver
+        required: false
+        style: form
+        explode: true
+        schema:
+          maximum: 100
+          minimum: 1
+          type: integer
+          default: 20
+      - name: sort
+        in: query
+        description: |
+          Campo(s) por los cuales ordenar los resultados. Separar múltiples campos por comas. Prefijar con '-' para orden descendente (ej: "nombre,-fecha_creacion"). Los campos disponibles dependen del recurso solicitado.
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+        example: "nombre,-fecha_registro"
+      - name: id_institucion
+        in: query
+        description: Filtrar por institución
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: integer
+      - name: nombre
+        in: query
+        description: Filtrar por nombre
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+      - name: id_municipio
+        in: query
+        description: Filtrar por municipio
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: integer
+      responses:
+        "200":
+          description: Lista de sedes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_1"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+    post:
+      tags:
+      - Sedes
+      summary: Crear nueva sede
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Sede"
+        required: true
+      responses:
+        "201":
+          description: Sede creada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sede"
+        "400":
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+      security:
+      - bearerAuth: []
+  /sedes/{id}:
+    get:
+      tags:
+      - Sedes
+      summary: Obtener sede por ID
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "200":
+          description: Detalle de la sede
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sede"
+        "401":
+          description: No autorizado
+        "404":
+          description: Sede no encontrada
+    put:
+      tags:
+      - Sedes
+      summary: Actualizar una sede
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Sede"
+        required: true
+      responses:
+        "200":
+          description: Sede actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Sede"
+        "400":
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+        "404":
+          description: Sede no encontrada
+      security:
+      - bearerAuth: []
+    delete:
+      tags:
+      - Sedes
+      summary: Eliminar una sede
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "204":
+          description: Sede eliminada
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+        "404":
+          description: Sede no encontrada
+        "409":
+          description: No se puede eliminar la sede por tener dependencias
+      security:
+      - bearerAuth: []
+  /grados:
+    get:
+      tags:
+      - Grados
+      summary: Obtener todos los grados
+      parameters:
+      - name: offset
+        in: query
+        description: Número de registros a omitir para paginación
+        required: false
+        style: form
+        explode: true
+        schema:
+          minimum: 0
+          type: integer
+          default: 0
+      - name: limit
+        in: query
+        description: Número máximo de registros a devolver
+        required: false
+        style: form
+        explode: true
+        schema:
+          maximum: 100
+          minimum: 1
+          type: integer
+          default: 20
+      - name: sort
+        in: query
+        description: |
+          Campo(s) por los cuales ordenar los resultados. Separar múltiples campos por comas. Prefijar con '-' para orden descendente (ej: "nombre,-fecha_creacion"). Los campos disponibles dependen del recurso solicitado.
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+        example: "nombre,-fecha_registro"
+      - name: nombre
+        in: query
+        description: Filtrar por nombre
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Lista de grados
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_2"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+    post:
+      tags:
+      - Grados
+      summary: Crear nuevo grado
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Grado"
+        required: true
+      responses:
+        "201":
+          description: Grado creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Grado"
+        "400":
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+      security:
+      - bearerAuth: []
+  /grados/{id}:
+    get:
+      tags:
+      - Grados
+      summary: Obtener grado por ID
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "200":
+          description: Detalle del grado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Grado"
+        "401":
+          description: No autorizado
+        "404":
+          description: Grado no encontrado
+    put:
+      tags:
+      - Grados
+      summary: Actualizar un grado
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Grado"
+        required: true
+      responses:
+        "200":
+          description: Grado actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Grado"
+        "400":
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+        "404":
+          description: Grado no encontrado
+      security:
+      - bearerAuth: []
+    delete:
+      tags:
+      - Grados
+      summary: Eliminar un grado
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "204":
+          description: Grado eliminado
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+        "404":
+          description: Grado no encontrado
+        "409":
+          description: No se puede eliminar el grado por tener dependencias
+      security:
+      - bearerAuth: []
+  /grados/{id}/asignaturas:
+    get:
+      tags:
+      - Grados
+      summary: Obtener asignaturas asignadas a un grado
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "200":
+          description: Lista de asignaturas del grado
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Asignatura"
+                x-content-type: application/json
+        "401":
+          description: No autorizado
+        "404":
+          description: Grado no encontrado
+    post:
+      tags:
+      - Grados
+      summary: Asignar asignatura a un grado
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GradoAsignatura"
+        required: true
+      responses:
+        "201":
+          description: Asignatura asignada al grado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GradoAsignatura"
+        "400":
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+        "404":
+          description: Grado o asignatura no encontrada
+      security:
+      - bearerAuth: []
+  /grados/{id_grado}/asignaturas/{id_asignatura}:
+    delete:
+      tags:
+      - Grados
+      summary: Eliminar asignatura de un grado
+      parameters:
+      - name: id_grado
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      - name: id_asignatura
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "204":
+          description: Asignatura eliminada del grado
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+        "404":
+          description: Relación grado-asignatura no encontrada
+        "409":
+          description: No se puede eliminar el recurso por dependencias existentes
+      security:
+      - bearerAuth: []
+  /grupos:
+    get:
+      tags:
+      - Grupos
+      summary: Obtener todos los grupos
+      parameters:
+      - name: offset
+        in: query
+        description: Número de registros a omitir para paginación
+        required: false
+        style: form
+        explode: true
+        schema:
+          minimum: 0
+          type: integer
+          default: 0
+      - name: limit
+        in: query
+        description: Número máximo de registros a devolver
+        required: false
+        style: form
+        explode: true
+        schema:
+          maximum: 100
+          minimum: 1
+          type: integer
+          default: 20
+      - name: sort
+        in: query
+        description: |
+          Campo(s) por los cuales ordenar los resultados. Separar múltiples campos por comas. Prefijar con '-' para orden descendente (ej: "nombre,-fecha_creacion"). Los campos disponibles dependen del recurso solicitado.
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+        example: "nombre,-fecha_registro"
+      - name: id_grado
+        in: query
+        description: Filtrar por grado
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: integer
+      - name: id_sede
+        in: query
+        description: Filtrar por sede
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: integer
+      - name: id_jornada
+        in: query
+        description: Filtrar por jornada
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: integer
+      responses:
+        "200":
+          description: Lista de grupos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_3"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+    post:
+      tags:
+      - Grupos
+      summary: Crear nuevo grupo
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Grupo"
+        required: true
+      responses:
+        "201":
+          description: Grupo creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Grupo"
+        "400":
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+      security:
+      - bearerAuth: []
+  /grupos/{id}:
+    get:
+      tags:
+      - Grupos
+      summary: Obtener grupo por ID
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "200":
+          description: Detalle del grupo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Grupo"
+        "401":
+          description: No autorizado
+        "404":
+          description: Grupo no encontrado
+    put:
+      tags:
+      - Grupos
+      summary: Actualizar un grupo
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Grupo"
+        required: true
+      responses:
+        "200":
+          description: Grupo actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Grupo"
+        "400":
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+        "404":
+          description: Grupo no encontrado
+      security:
+      - bearerAuth: []
+    delete:
+      tags:
+      - Grupos
+      summary: Eliminar un grupo
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "204":
+          description: Grupo eliminado
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+        "404":
+          description: Grupo no encontrado
+        "409":
+          description: No se puede eliminar el grupo por tener dependencias
+      security:
+      - bearerAuth: []
+  /jornadas:
+    get:
+      tags:
+      - Jornadas
+      summary: Obtener todas las jornadas
+      parameters:
+      - name: offset
+        in: query
+        description: Número de registros a omitir para paginación
+        required: false
+        style: form
+        explode: true
+        schema:
+          minimum: 0
+          type: integer
+          default: 0
+      - name: limit
+        in: query
+        description: Número máximo de registros a devolver
+        required: false
+        style: form
+        explode: true
+        schema:
+          maximum: 100
+          minimum: 1
+          type: integer
+          default: 20
+      - name: sort
+        in: query
+        description: |
+          Campo(s) por los cuales ordenar los resultados. Separar múltiples campos por comas. Prefijar con '-' para orden descendente (ej: "nombre,-fecha_creacion"). Los campos disponibles dependen del recurso solicitado.
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+        example: "nombre,-fecha_registro"
+      - name: nombre
+        in: query
+        description: Filtrar por nombre
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Lista de jornadas
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_4"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+    post:
+      tags:
+      - Jornadas
+      summary: Crear nueva jornada
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Jornada"
+        required: true
+      responses:
+        "201":
+          description: Jornada creada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Jornada"
+        "400":
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+      security:
+      - bearerAuth: []
+  /jornadas/{id}:
+    get:
+      tags:
+      - Jornadas
+      summary: Obtener jornada por ID
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "200":
+          description: Detalle de la jornada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Jornada"
+        "401":
+          description: No autorizado
+        "404":
+          description: Jornada no encontrada
+    put:
+      tags:
+      - Jornadas
+      summary: Actualizar una jornada
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Jornada"
+        required: true
+      responses:
+        "200":
+          description: Jornada actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Jornada"
+        "400":
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+        "404":
+          description: Jornada no encontrada
+      security:
+      - bearerAuth: []
+    delete:
+      tags:
+      - Jornadas
+      summary: Eliminar una jornada
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "204":
+          description: Jornada eliminada
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+        "404":
+          description: Jornada no encontrada
+        "409":
+          description: No se puede eliminar la jornada por tener dependencias
+      security:
+      - bearerAuth: []
+  /asignaturas:
+    get:
+      tags:
+      - Asignaturas
+      summary: Obtener todas las asignaturas
+      parameters:
+      - name: offset
+        in: query
+        description: Número de registros a omitir para paginación
+        required: false
+        style: form
+        explode: true
+        schema:
+          minimum: 0
+          type: integer
+          default: 0
+      - name: limit
+        in: query
+        description: Número máximo de registros a devolver
+        required: false
+        style: form
+        explode: true
+        schema:
+          maximum: 100
+          minimum: 1
+          type: integer
+          default: 20
+      - name: sort
+        in: query
+        description: |
+          Campo(s) por los cuales ordenar los resultados. Separar múltiples campos por comas. Prefijar con '-' para orden descendente (ej: "nombre,-fecha_creacion"). Los campos disponibles dependen del recurso solicitado.
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+        example: "nombre,-fecha_registro"
+      - name: nombre
+        in: query
+        description: Filtrar por nombre
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Lista de asignaturas
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_5"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+    post:
+      tags:
+      - Asignaturas
+      summary: Crear nueva asignatura
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Asignatura"
+        required: true
+      responses:
+        "201":
+          description: Asignatura creada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Asignatura"
+        "400":
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+      security:
+      - bearerAuth: []
+  /asignaturas/{id}:
+    get:
+      tags:
+      - Asignaturas
+      summary: Obtener asignatura por ID
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "200":
+          description: Detalle de la asignatura
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Asignatura"
+        "401":
+          description: No autorizado
+        "404":
+          description: Asignatura no encontrada
+    put:
+      tags:
+      - Asignaturas
+      summary: Actualizar una asignatura
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Asignatura"
+        required: true
+      responses:
+        "200":
+          description: Asignatura actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Asignatura"
+        "400":
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+        "404":
+          description: Asignatura no encontrada
+      security:
+      - bearerAuth: []
+    delete:
+      tags:
+      - Asignaturas
+      summary: Eliminar una asignatura
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "204":
+          description: Asignatura eliminada
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+        "404":
+          description: Asignatura no encontrada
+        "409":
+          description: No se puede eliminar la asignatura por tener dependencias
+      security:
+      - bearerAuth: []
+  /estudiantes:
+    get:
+      tags:
+      - Estudiantes
+      summary: Obtener todos los estudiantes
+      parameters:
+      - name: offset
+        in: query
+        description: Número de registros a omitir para paginación
+        required: false
+        style: form
+        explode: true
+        schema:
+          minimum: 0
+          type: integer
+          default: 0
+      - name: limit
+        in: query
+        description: Número máximo de registros a devolver
+        required: false
+        style: form
+        explode: true
+        schema:
+          maximum: 100
+          minimum: 1
+          type: integer
+          default: 20
+      - name: sort
+        in: query
+        description: |
+          Campo(s) por los cuales ordenar los resultados. Separar múltiples campos por comas. Prefijar con '-' para orden descendente (ej: "nombre,-fecha_creacion"). Los campos disponibles dependen del recurso solicitado.
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+        example: "nombre,-fecha_registro"
+      - name: nombres
+        in: query
+        description: Filtrar por nombres del estudiante
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+      - name: apellidos
+        in: query
+        description: Filtrar por apellidos del estudiante
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Lista de estudiantes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_6"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+    post:
+      tags:
+      - Estudiantes
+      summary: Crear nuevo estudiante
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Estudiante"
+            examples:
+              documento_invalido:
+                description: Documento con menos de 8 dígitos
+                value:
+                  nombres: Ana
+                  apellidos: García
+                  documento_identidad: "123"
+                  tipo_documento: CC
+        required: true
+      responses:
+        "201":
+          description: Estudiante creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Estudiante"
+        "400":
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+      security:
+      - bearerAuth: []
+  /estudiantes/{id}:
+    get:
+      tags:
+      - Estudiantes
+      summary: Obtener estudiante por ID
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "200":
+          description: Detalle del estudiante
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Estudiante"
+        "401":
+          description: No autorizado
+        "404":
+          description: Estudiante no encontrado
+    put:
+      tags:
+      - Estudiantes
+      summary: Actualizar un estudiante
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Estudiante"
+        required: true
+      responses:
+        "200":
+          description: Estudiante actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Estudiante"
+        "400":
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+        "404":
+          description: Estudiante no encontrado
+      security:
+      - bearerAuth: []
+    delete:
+      tags:
+      - Estudiantes
+      summary: Eliminar un estudiante
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "204":
+          description: Estudiante eliminado
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+        "404":
+          description: Estudiante no encontrado
+        "409":
+          description: No se puede eliminar el estudiante por tener dependencias
+      security:
+      - bearerAuth: []
+  /docentes:
+    get:
+      tags:
+      - Docentes
+      summary: Obtener todos los docentes
+      parameters:
+      - name: offset
+        in: query
+        description: Número de registros a omitir para paginación
+        required: false
+        style: form
+        explode: true
+        schema:
+          minimum: 0
+          type: integer
+          default: 0
+      - name: limit
+        in: query
+        description: Número máximo de registros a devolver
+        required: false
+        style: form
+        explode: true
+        schema:
+          maximum: 100
+          minimum: 1
+          type: integer
+          default: 20
+      - name: sort
+        in: query
+        description: |
+          Campo(s) por los cuales ordenar los resultados. Separar múltiples campos por comas. Prefijar con '-' para orden descendente (ej: "nombre,-fecha_creacion"). Los campos disponibles dependen del recurso solicitado.
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+        example: "nombre,-fecha_registro"
+      - name: nombres
+        in: query
+        description: Filtrar por nombres del docente
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+      - name: apellidos
+        in: query
+        description: Filtrar por apellidos del docente
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Lista de docentes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_7"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+    post:
+      tags:
+      - Docentes
+      summary: Crear nuevo docente
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Docente"
+        required: true
+      responses:
+        "201":
+          description: Docente creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Docente"
+        "400":
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+      security:
+      - bearerAuth: []
+  /docentes/{id}:
+    get:
+      tags:
+      - Docentes
+      summary: Obtener docente por ID
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "200":
+          description: Detalle del docente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Docente"
+        "401":
+          description: No autorizado
+        "404":
+          description: Docente no encontrado
+    put:
+      tags:
+      - Docentes
+      summary: Actualizar un docente
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Docente"
+        required: true
+      responses:
+        "200":
+          description: Docente actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Docente"
+        "400":
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+        "404":
+          description: Docente no encontrado
+      security:
+      - bearerAuth: []
+    delete:
+      tags:
+      - Docentes
+      summary: Eliminar un docente
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "204":
+          description: Docente eliminado
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+        "404":
+          description: Docente no encontrado
+        "409":
+          description: No se puede eliminar el docente por tener dependencias
+      security:
+      - bearerAuth: []
+  /carga-academica:
+    get:
+      tags:
+      - Carga Académica
+      summary: Obtener todas las cargas académicas
+      parameters:
+      - name: offset
+        in: query
+        description: Número de registros a omitir para paginación
+        required: false
+        style: form
+        explode: true
+        schema:
+          minimum: 0
+          type: integer
+          default: 0
+      - name: limit
+        in: query
+        description: Número máximo de registros a devolver
+        required: false
+        style: form
+        explode: true
+        schema:
+          maximum: 100
+          minimum: 1
+          type: integer
+          default: 20
+      - name: sort
+        in: query
+        description: |
+          Campo(s) por los cuales ordenar los resultados. Separar múltiples campos por comas. Prefijar con '-' para orden descendente (ej: "nombre,-fecha_creacion"). Los campos disponibles dependen del recurso solicitado.
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+        example: "nombre,-fecha_registro"
+      - name: id_docente
+        in: query
+        description: Filtrar por ID de docente
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: integer
+      - name: id_grupo
+        in: query
+        description: Filtrar por ID de grupo
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: integer
+      - name: id_asignatura
+        in: query
+        description: Filtrar por ID de asignatura
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: integer
+      responses:
+        "200":
+          description: Lista de cargas académicas
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_8"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+    post:
+      tags:
+      - Carga Académica
+      summary: Crear nueva carga académica
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CargaAcademica"
+        required: true
+      responses:
+        "201":
+          description: Carga académica creada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CargaAcademica"
+        "400":
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+      security:
+      - bearerAuth: []
+  /carga-academica/{id}:
+    get:
+      tags:
+      - Carga Académica
+      summary: Obtener carga académica por ID
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "200":
+          description: Detalle de la carga académica
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CargaAcademica"
+        "401":
+          description: No autorizado
+        "404":
+          description: Carga académica no encontrada
+    put:
+      tags:
+      - Carga Académica
+      summary: Actualizar carga académica
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CargaAcademica"
+        required: true
+      responses:
+        "200":
+          description: Carga académica actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CargaAcademica"
+        "400":
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+        "404":
+          description: Carga académica no encontrada
+      security:
+      - bearerAuth: []
+    delete:
+      tags:
+      - Carga Académica
+      summary: Eliminar carga académica
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "204":
+          description: Carga académica eliminada
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+        "404":
+          description: Carga académica no encontrada
+        "409":
+          description: No se puede eliminar la carga académica por tener dependencias
+      security:
+      - bearerAuth: []
+  /matriculas:
+    get:
+      tags:
+      - Matricula
+      summary: Obtener todas las matrículas
+      parameters:
+      - name: offset
+        in: query
+        description: Número de registros a omitir para paginación
+        required: false
+        style: form
+        explode: true
+        schema:
+          minimum: 0
+          type: integer
+          default: 0
+      - name: limit
+        in: query
+        description: Número máximo de registros a devolver
+        required: false
+        style: form
+        explode: true
+        schema:
+          maximum: 100
+          minimum: 1
+          type: integer
+          default: 20
+      - name: sort
+        in: query
+        description: |
+          Campo(s) por los cuales ordenar los resultados. Separar múltiples campos por comas. Prefijar con '-' para orden descendente (ej: "nombre,-fecha_creacion"). Los campos disponibles dependen del recurso solicitado.
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+        example: "nombre,-fecha_registro"
+      - name: id_estudiante
+        in: query
+        description: Filtrar por ID de estudiante
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: integer
+      - name: id_grupo
+        in: query
+        description: Filtrar por ID de grupo
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: integer
+      - name: estado
+        in: query
+        description: Filtrar por estado de matrícula
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Lista de matrículas
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_9"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+    post:
+      tags:
+      - Matricula
+      summary: Crear nueva matrícula
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Matricula"
+        required: true
+      responses:
+        "201":
+          description: Matrícula creada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Matricula"
+        "400":
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+      security:
+      - bearerAuth: []
+  /matriculas/{id}:
+    get:
+      tags:
+      - Matricula
+      summary: Obtener matrícula por ID
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "200":
+          description: Detalle de la matrícula
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Matricula"
+        "401":
+          description: No autorizado
+        "404":
+          description: Matrícula no encontrada
+    put:
+      tags:
+      - Matricula
+      summary: Actualizar matrícula
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Matricula"
+        required: true
+      responses:
+        "200":
+          description: Matrícula actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Matricula"
+        "400":
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+        "404":
+          description: Matrícula no encontrada
+      security:
+      - bearerAuth: []
+    delete:
+      tags:
+      - Matricula
+      summary: Eliminar matrícula
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "204":
+          description: Matrícula eliminada
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+        "404":
+          description: Matrícula no encontrada
+        "409":
+          description: No se puede eliminar la matrícula por tener dependencias
+      security:
+      - bearerAuth: []
+  /evaluaciones:
+    get:
+      tags:
+      - Evaluaciones
+      summary: Obtener todas las evaluaciones
+      parameters:
+      - name: offset
+        in: query
+        description: Número de registros a omitir para paginación
+        required: false
+        style: form
+        explode: true
+        schema:
+          minimum: 0
+          type: integer
+          default: 0
+      - name: limit
+        in: query
+        description: Número máximo de registros a devolver
+        required: false
+        style: form
+        explode: true
+        schema:
+          maximum: 100
+          minimum: 1
+          type: integer
+          default: 20
+      - name: sort
+        in: query
+        description: |
+          Campo(s) por los cuales ordenar los resultados. Separar múltiples campos por comas. Prefijar con '-' para orden descendente (ej: "nombre,-fecha_creacion"). Los campos disponibles dependen del recurso solicitado.
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+        example: "nombre,-fecha_registro"
+      - name: id_carga_academica
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: integer
+      - name: id_periodo
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: integer
+      responses:
+        "200":
+          description: Lista de evaluaciones
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_10"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+    post:
+      tags:
+      - Evaluaciones
+      summary: Crear nueva evaluación
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Evaluacion"
+        required: true
+      responses:
+        "201":
+          description: Evaluación creada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Evaluacion"
+        "400":
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+      security:
+      - bearerAuth: []
+  /evaluaciones/{id}:
+    get:
+      tags:
+      - Evaluaciones
+      summary: Obtener evaluación por ID
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "200":
+          description: Detalle de la evaluación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Evaluacion"
+        "401":
+          description: No autorizado
+        "404":
+          description: Evaluación no encontrada
+    put:
+      tags:
+      - Evaluaciones
+      summary: Actualizar evaluación
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Evaluacion"
+        required: true
+      responses:
+        "200":
+          description: Evaluación actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Evaluacion"
+        "400":
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+        "404":
+          description: Evaluación no encontrada
+      security:
+      - bearerAuth: []
+    delete:
+      tags:
+      - Evaluaciones
+      summary: Eliminar evaluación
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "204":
+          description: Evaluación eliminada
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+        "404":
+          description: Evaluación no encontrada
+        "409":
+          description: No se puede eliminar la evaluación por tener dependencias
+      security:
+      - bearerAuth: []
+  /calificaciones:
+    get:
+      tags:
+      - Calificaciones
+      summary: Obtener todas las calificaciones
+      parameters:
+      - name: offset
+        in: query
+        description: Número de registros a omitir para paginación
+        required: false
+        style: form
+        explode: true
+        schema:
+          minimum: 0
+          type: integer
+          default: 0
+      - name: limit
+        in: query
+        description: Número máximo de registros a devolver
+        required: false
+        style: form
+        explode: true
+        schema:
+          maximum: 100
+          minimum: 1
+          type: integer
+          default: 20
+      - name: sort
+        in: query
+        description: |
+          Campo(s) por los cuales ordenar los resultados. Separar múltiples campos por comas. Prefijar con '-' para orden descendente (ej: "nombre,-fecha_creacion"). Los campos disponibles dependen del recurso solicitado.
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+        example: "nombre,-fecha_registro"
+      - name: id_evaluacion
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: integer
+      - name: id_matricula
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: integer
+      responses:
+        "200":
+          description: Lista de calificaciones
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_11"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+    post:
+      tags:
+      - Calificaciones
+      summary: Registrar nueva calificación
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Calificacion"
+        required: true
+      responses:
+        "201":
+          description: Calificación registrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Calificacion"
+        "400":
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+      security:
+      - bearerAuth: []
+  /calificaciones/{id}:
+    get:
+      tags:
+      - Calificaciones
+      summary: Obtener calificación por ID
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "200":
+          description: Detalle de la calificación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Calificacion"
+        "401":
+          description: No autorizado
+        "404":
+          description: Calificación no encontrada
+    put:
+      tags:
+      - Calificaciones
+      summary: Actualizar calificación
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Calificacion"
+        required: true
+      responses:
+        "200":
+          description: Calificación actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Calificacion"
+        "400":
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+        "404":
+          description: Calificación no encontrada
+      security:
+      - bearerAuth: []
+    delete:
+      tags:
+      - Calificaciones
+      summary: Eliminar calificación
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "204":
+          description: Calificación eliminada
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+        "404":
+          description: Calificación no encontrada
+      security:
+      - bearerAuth: []
+  /asistencia:
+    get:
+      tags:
+      - Asistencia
+      summary: Obtener registros de asistencia
+      parameters:
+      - name: offset
+        in: query
+        description: Número de registros a omitir para paginación
+        required: false
+        style: form
+        explode: true
+        schema:
+          minimum: 0
+          type: integer
+          default: 0
+      - name: limit
+        in: query
+        description: Número máximo de registros a devolver
+        required: false
+        style: form
+        explode: true
+        schema:
+          maximum: 100
+          minimum: 1
+          type: integer
+          default: 20
+      - name: sort
+        in: query
+        description: |
+          Campo(s) por los cuales ordenar los resultados. Separar múltiples campos por comas. Prefijar con '-' para orden descendente (ej: "nombre,-fecha_creacion"). Los campos disponibles dependen del recurso solicitado.
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+        example: "nombre,-fecha_registro"
+      - name: id_matricula
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: integer
+      - name: fecha
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+          format: date
+      responses:
+        "200":
+          description: Lista de asistencias
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_12"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+    post:
+      tags:
+      - Asistencia
+      summary: Registrar asistencia
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Asistencia"
+        required: true
+      responses:
+        "201":
+          description: Asistencia registrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Asistencia"
+        "400":
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+      security:
+      - bearerAuth: []
+  /asistencia/{id}:
+    get:
+      tags:
+      - Asistencia
+      summary: Obtener registro de asistencia por ID
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "200":
+          description: Detalle del registro de asistencia
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Asistencia"
+        "401":
+          description: No autorizado
+        "404":
+          description: Asistencia no encontrada
+    put:
+      tags:
+      - Asistencia
+      summary: Actualizar registro de asistencia
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Asistencia"
+        required: true
+      responses:
+        "200":
+          description: Asistencia actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Asistencia"
+        "400":
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+        "404":
+          description: Asistencia no encontrada
+      security:
+      - bearerAuth: []
+    delete:
+      tags:
+      - Asistencia
+      summary: Eliminar registro de asistencia
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "204":
+          description: Asistencia eliminada
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+        "404":
+          description: Asistencia no encontrada
+      security:
+      - bearerAuth: []
+  /usuarios:
+    get:
+      tags:
+      - Usuarios
+      summary: Obtener todos los usuarios
+      parameters:
+      - name: offset
+        in: query
+        description: Número de registros a omitir para paginación
+        required: false
+        style: form
+        explode: true
+        schema:
+          minimum: 0
+          type: integer
+          default: 0
+      - name: limit
+        in: query
+        description: Número máximo de registros a devolver
+        required: false
+        style: form
+        explode: true
+        schema:
+          maximum: 100
+          minimum: 1
+          type: integer
+          default: 20
+      - name: sort
+        in: query
+        description: |
+          Campo(s) por los cuales ordenar los resultados. Separar múltiples campos por comas. Prefijar con '-' para orden descendente (ej: "nombre,-fecha_creacion"). Los campos disponibles dependen del recurso solicitado.
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+        example: "nombre,-fecha_registro"
+      - name: nombre_usuario
+        in: query
+        description: Filtrar por nombre de usuario
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Lista de usuarios
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_13"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+    post:
+      tags:
+      - Usuarios
+      summary: Crear nuevo usuario
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Usuario"
+            examples:
+              valido:
+                value:
+                  nombre_usuario: maria_gomez
+                  clave: Passw0rd!
+                  id_rol: 2
+              invalido:
+                description: |
+                  Errores esperados:
+                  - nombre_usuario: mínimo 5 caracteres
+                  - clave: no cumple política de complejidad
+                value:
+                  nombre_usuario: mg
+                  clave: "1234"
+                  id_rol: 2
+        required: true
+      responses:
+        "201":
+          description: Usuario creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Usuario"
+        "400":
+          description: Error de Validación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+              example:
+                error: validation_error
+                message: 3 errores de validación
+                details:
+                - field: clave
+                  message: Debe tener al menos 8 caracteres
+                  code: min_length
+                - field: clave
+                  message: "Debe contener al menos una mayúscula, un número y un cará\
+                    cter especial"
+                  code: invalid_format
+                - field: nombre_usuario
+                  message: Debe tener entre 5 y 50 caracteres
+                  code: length
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+      security:
+      - bearerAuth: []
+  /usuarios/{id}:
+    get:
+      tags:
+      - Usuarios
+      summary: Obtener usuario por ID
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "200":
+          description: Detalle del usuario
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Usuario"
+        "401":
+          description: No autorizado
+        "404":
+          description: Usuario no encontrado
+    put:
+      tags:
+      - Usuarios
+      summary: Actualizar usuario
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Usuario"
+        required: true
+      responses:
+        "200":
+          description: Usuario actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Usuario"
+        "400":
+          description: Error de validación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+        "404":
+          description: Usuario no encontrado
+      security:
+      - bearerAuth: []
+    delete:
+      tags:
+      - Usuarios
+      summary: Eliminar usuario
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "204":
+          description: Usuario eliminado
+        "401":
+          description: No autorizado
+        "403":
+          description: Prohibido
+        "404":
+          description: Usuario no encontrado
+        "409":
+          description: No se puede eliminar el recurso por dependencias existentes
+      security:
+      - bearerAuth: []
+  /observaciones:
+    get:
+      tags:
+      - Observaciones
+      summary: Obtener todas las observaciones de comportamiento
+      parameters:
+      - name: offset
+        in: query
+        description: Número de registros a omitir para paginación
+        required: false
+        style: form
+        explode: true
+        schema:
+          minimum: 0
+          type: integer
+          default: 0
+      - name: limit
+        in: query
+        description: Número máximo de registros a devolver
+        required: false
+        style: form
+        explode: true
+        schema:
+          maximum: 100
+          minimum: 1
+          type: integer
+          default: 20
+      - name: sort
+        in: query
+        description: |
+          Campo(s) por los cuales ordenar los resultados. Separar múltiples campos por comas. Prefijar con '-' para orden descendente (ej: "nombre,-fecha_creacion"). Los campos disponibles dependen del recurso solicitado.
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+        example: "nombre,-fecha_registro"
+      - name: id_matricula
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: integer
+      - name: tipo_observacion
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Lista de observaciones
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_14"
+    post:
+      tags:
+      - Observaciones
+      summary: Registrar observación de comportamiento
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ObservacionComportamiento"
+        required: true
+      responses:
+        "201":
+          description: Observación registrada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ObservacionComportamiento"
+      security:
+      - bearerAuth: []
+  /observaciones/{id}:
+    get:
+      tags:
+      - Observaciones
+      summary: Obtener observación por ID
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "200":
+          description: Detalle de la observación
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ObservacionComportamiento"
+    put:
+      tags:
+      - Observaciones
+      summary: Actualizar observación
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ObservacionComportamiento"
+        required: true
+      responses:
+        "200":
+          description: Observación actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ObservacionComportamiento"
+      security:
+      - bearerAuth: []
+    delete:
+      tags:
+      - Observaciones
+      summary: Eliminar observación
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "204":
+          description: Observación eliminada
+      security:
+      - bearerAuth: []
+  /periodos:
+    get:
+      tags:
+      - Periodos
+      summary: Obtener todos los periodos académicos
+      parameters:
+      - name: offset
+        in: query
+        description: Número de registros a omitir para paginación
+        required: false
+        style: form
+        explode: true
+        schema:
+          minimum: 0
+          type: integer
+          default: 0
+      - name: limit
+        in: query
+        description: Número máximo de registros a devolver
+        required: false
+        style: form
+        explode: true
+        schema:
+          maximum: 100
+          minimum: 1
+          type: integer
+          default: 20
+      - name: sort
+        in: query
+        description: |
+          Campo(s) por los cuales ordenar los resultados. Separar múltiples campos por comas. Prefijar con '-' para orden descendente (ej: "nombre,-fecha_creacion"). Los campos disponibles dependen del recurso solicitado.
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+        example: "nombre,-fecha_registro"
+      responses:
+        "200":
+          description: Lista de periodos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_15"
+    post:
+      tags:
+      - Periodos
+      summary: Crear nuevo periodo
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Periodo"
+        required: true
+      responses:
+        "201":
+          description: Periodo creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Periodo"
+      security:
+      - bearerAuth: []
+  /periodos/{id}:
+    get:
+      tags:
+      - Periodos
+      summary: Obtener periodo por ID
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "200":
+          description: Detalle del periodo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Periodo"
+    put:
+      tags:
+      - Periodos
+      summary: Actualizar periodo
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Periodo"
+        required: true
+      responses:
+        "200":
+          description: Periodo actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Periodo"
+      security:
+      - bearerAuth: []
+    delete:
+      tags:
+      - Periodos
+      summary: Eliminar periodo
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "204":
+          description: Periodo eliminado
+        "409":
+          description: No se puede eliminar el recurso por dependencias existentes
+      security:
+      - bearerAuth: []
+  /anio-lectivo:
+    get:
+      tags:
+      - Año Lectivo
+      summary: Obtener todos los años lectivos
+      parameters:
+      - name: offset
+        in: query
+        description: Número de registros a omitir para paginación
+        required: false
+        style: form
+        explode: true
+        schema:
+          minimum: 0
+          type: integer
+          default: 0
+      - name: limit
+        in: query
+        description: Número máximo de registros a devolver
+        required: false
+        style: form
+        explode: true
+        schema:
+          maximum: 100
+          minimum: 1
+          type: integer
+          default: 20
+      - name: sort
+        in: query
+        description: |
+          Campo(s) por los cuales ordenar los resultados. Separar múltiples campos por comas. Prefijar con '-' para orden descendente (ej: "nombre,-fecha_creacion"). Los campos disponibles dependen del recurso solicitado.
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+        example: "nombre,-fecha_registro"
+      responses:
+        "200":
+          description: Lista de años lectivos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_16"
+    post:
+      tags:
+      - Año Lectivo
+      summary: Crear nuevo año lectivo
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnioLectivo"
+        required: true
+      responses:
+        "201":
+          description: Año lectivo creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnioLectivo"
+      security:
+      - bearerAuth: []
+  /anio-lectivo/{id}:
+    get:
+      tags:
+      - Año Lectivo
+      summary: Obtener año lectivo por ID
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "200":
+          description: Detalle del año lectivo
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnioLectivo"
+    put:
+      tags:
+      - Año Lectivo
+      summary: Actualizar año lectivo
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AnioLectivo"
+        required: true
+      responses:
+        "200":
+          description: Año lectivo actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AnioLectivo"
+      security:
+      - bearerAuth: []
+    delete:
+      tags:
+      - Año Lectivo
+      summary: Eliminar año lectivo
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "204":
+          description: Año lectivo eliminado
+        "409":
+          description: No se puede eliminar el recurso por dependencias existentes
+      security:
+      - bearerAuth: []
+  /acudientes:
+    get:
+      tags:
+      - Acudientes
+      summary: Obtener todos los acudientes
+      parameters:
+      - name: offset
+        in: query
+        description: Número de registros a omitir para paginación
+        required: false
+        style: form
+        explode: true
+        schema:
+          minimum: 0
+          type: integer
+          default: 0
+      - name: limit
+        in: query
+        description: Número máximo de registros a devolver
+        required: false
+        style: form
+        explode: true
+        schema:
+          maximum: 100
+          minimum: 1
+          type: integer
+          default: 20
+      - name: sort
+        in: query
+        description: |
+          Campo(s) por los cuales ordenar los resultados. Separar múltiples campos por comas. Prefijar con '-' para orden descendente (ej: "nombre,-fecha_creacion"). Los campos disponibles dependen del recurso solicitado.
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+        example: "nombre,-fecha_registro"
+      responses:
+        "200":
+          description: Lista de acudientes
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_17"
+    post:
+      tags:
+      - Acudientes
+      summary: Crear nuevo acudiente
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Acudiente"
+        required: true
+      responses:
+        "201":
+          description: Acudiente creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Acudiente"
+      security:
+      - bearerAuth: []
+  /acudientes/{id}:
+    get:
+      tags:
+      - Acudientes
+      summary: Obtener acudiente por ID
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "200":
+          description: Detalle del acudiente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Acudiente"
+    put:
+      tags:
+      - Acudientes
+      summary: Actualizar acudiente
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Acudiente"
+        required: true
+      responses:
+        "200":
+          description: Acudiente actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Acudiente"
+      security:
+      - bearerAuth: []
+    delete:
+      tags:
+      - Acudientes
+      summary: Eliminar acudiente
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "204":
+          description: Acudiente eliminado
+      security:
+      - bearerAuth: []
+  /logros:
+    get:
+      tags:
+      - Logros
+      summary: Obtener todos los logros
+      parameters:
+      - name: offset
+        in: query
+        description: Número de registros a omitir para paginación
+        required: false
+        style: form
+        explode: true
+        schema:
+          minimum: 0
+          type: integer
+          default: 0
+      - name: limit
+        in: query
+        description: Número máximo de registros a devolver
+        required: false
+        style: form
+        explode: true
+        schema:
+          maximum: 100
+          minimum: 1
+          type: integer
+          default: 20
+      - name: sort
+        in: query
+        description: |
+          Campo(s) por los cuales ordenar los resultados. Separar múltiples campos por comas. Prefijar con '-' para orden descendente (ej: "nombre,-fecha_creacion"). Los campos disponibles dependen del recurso solicitado.
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+        example: "nombre,-fecha_registro"
+      - name: id_competencia
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: integer
+      responses:
+        "200":
+          description: Lista de logros
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_18"
+    post:
+      tags:
+      - Logros
+      summary: Crear nuevo logro
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Logro"
+        required: true
+      responses:
+        "201":
+          description: Logro creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Logro"
+      security:
+      - bearerAuth: []
+  /logros/{id}:
+    get:
+      tags:
+      - Logros
+      summary: Obtener logro por ID
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "200":
+          description: Detalle del logro
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Logro"
+    put:
+      tags:
+      - Logros
+      summary: Actualizar logro
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Logro"
+        required: true
+      responses:
+        "200":
+          description: Logro actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Logro"
+      security:
+      - bearerAuth: []
+    delete:
+      tags:
+      - Logros
+      summary: Eliminar logro
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "204":
+          description: Logro eliminado
+      security:
+      - bearerAuth: []
+  /competencias:
+    get:
+      tags:
+      - Competencias
+      summary: Obtener todas las competencias
+      parameters:
+      - name: offset
+        in: query
+        description: Número de registros a omitir para paginación
+        required: false
+        style: form
+        explode: true
+        schema:
+          minimum: 0
+          type: integer
+          default: 0
+      - name: limit
+        in: query
+        description: Número máximo de registros a devolver
+        required: false
+        style: form
+        explode: true
+        schema:
+          maximum: 100
+          minimum: 1
+          type: integer
+          default: 20
+      - name: sort
+        in: query
+        description: |
+          Campo(s) por los cuales ordenar los resultados. Separar múltiples campos por comas. Prefijar con '-' para orden descendente (ej: "nombre,-fecha_creacion"). Los campos disponibles dependen del recurso solicitado.
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+        example: "nombre,-fecha_registro"
+      - name: id_asignatura
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: integer
+      responses:
+        "200":
+          description: Lista de competencias
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_19"
+    post:
+      tags:
+      - Competencias
+      summary: Crear nueva competencia
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Competencia"
+        required: true
+      responses:
+        "201":
+          description: Competencia creada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Competencia"
+      security:
+      - bearerAuth: []
+  /competencias/{id}:
+    get:
+      tags:
+      - Competencias
+      summary: Obtener competencia por ID
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "200":
+          description: Detalle de la competencia
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Competencia"
+    put:
+      tags:
+      - Competencias
+      summary: Actualizar competencia
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Competencia"
+        required: true
+      responses:
+        "200":
+          description: Competencia actualizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Competencia"
+      security:
+      - bearerAuth: []
+    delete:
+      tags:
+      - Competencias
+      summary: Eliminar competencia
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "204":
+          description: Competencia eliminada
+      security:
+      - bearerAuth: []
+  /horarios:
+    get:
+      tags:
+      - Horarios
+      summary: Obtener todos los horarios
+      parameters:
+      - name: offset
+        in: query
+        description: Número de registros a omitir para paginación
+        required: false
+        style: form
+        explode: true
+        schema:
+          minimum: 0
+          type: integer
+          default: 0
+      - name: limit
+        in: query
+        description: Número máximo de registros a devolver
+        required: false
+        style: form
+        explode: true
+        schema:
+          maximum: 100
+          minimum: 1
+          type: integer
+          default: 20
+      - name: sort
+        in: query
+        description: |
+          Campo(s) por los cuales ordenar los resultados. Separar múltiples campos por comas. Prefijar con '-' para orden descendente (ej: "nombre,-fecha_creacion"). Los campos disponibles dependen del recurso solicitado.
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+        example: "nombre,-fecha_registro"
+      - name: id_grupo
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: integer
+      - name: dia_semana
+        in: query
+        required: false
+        style: form
+        explode: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: Lista de horarios
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_20"
+    post:
+      tags:
+      - Horarios
+      summary: Crear nuevo horario
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Horario"
+        required: true
+      responses:
+        "201":
+          description: Horario creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Horario"
+      security:
+      - bearerAuth: []
+  /horarios/{id}:
+    get:
+      tags:
+      - Horarios
+      summary: Obtener horario por ID
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "200":
+          description: Detalle del horario
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Horario"
+    put:
+      tags:
+      - Horarios
+      summary: Actualizar horario
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Horario"
+        required: true
+      responses:
+        "200":
+          description: Horario actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Horario"
+      security:
+      - bearerAuth: []
+    delete:
+      tags:
+      - Horarios
+      summary: Eliminar horario
+      parameters:
+      - name: id
+        in: path
+        required: true
+        style: simple
+        explode: false
+        schema:
+          type: integer
+      responses:
+        "204":
+          description: Horario eliminado
+      security:
+      - bearerAuth: []
+  /auth/login:
+    post:
+      tags:
+      - Autenticación
+      summary: Iniciar sesión y obtener token JWT
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/auth_login_body"
+        required: true
+      responses:
+        "200":
+          description: Token JWT generado exitosamente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_21"
+        "400":
+          description: Solicitud incorrecta
+        "401":
+          description: Credenciales inválidas
+  /auth/refresh:
+    post:
+      tags:
+      - Autenticación
+      summary: Renovar token de acceso usando un refresh token
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/auth_refresh_body"
+        required: true
+      responses:
+        "200":
+          description: Nuevo token generado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/inline_response_200_21"
+        "401":
+          description: Token de refresco inválido o expirado
+  /auth/logout:
+    post:
+      tags:
+      - Autenticación
+      summary: Cerrar sesión y revocar token
+      responses:
+        "204":
+          description: Sesión cerrada correctamente
+        "401":
+          description: Token inválido o ausente
+      security:
+      - bearerAuth: []
+components:
+  schemas:
+    Institucion:
+      required:
+      - codigo_dane
+      - nombre
+      type: object
+      properties:
+        id_institucion:
+          type: integer
+          readOnly: true
+          example: 1
+        nombre:
+          maxLength: 100
+          minLength: 5
+          pattern: "^[A-Za-zÁÉÍÓÚáéíóúñÑ ]+$"
+          type: string
+          example: Institución Educativa Distrital Kennedy
+        codigo_dane:
+          pattern: "^[0-9]{12}$"
+          type: string
+          example: "111001107836"
+      example:
+        id_institucion: 1
+        nombre: Institución Educativa Distrital Kennedy
+        codigo_dane: "111001107836"
+    Sede:
+      required:
+      - id_institucion
+      - nombre
+      type: object
+      properties:
+        id_sede:
+          type: integer
+          readOnly: true
+          example: 1
+        nombre:
+          maxLength: 100
+          type: string
+          example: Sede Principal
+        direccion:
+          maxLength: 150
+          type: string
+          example: "Calle 5 #10-25, Kennedy"
+        id_institucion:
+          type: integer
+          example: 1
+        id_municipio:
+          type: integer
+          example: 1
+      example:
+        id_institucion: 1
+        id_sede: 1
+        id_municipio: 1
+        direccion: "Calle 5 #10-25, Kennedy"
+        nombre: Sede Principal
+    Grado:
+      required:
+      - nombre
+      type: object
+      properties:
+        id_grado:
+          type: integer
+          readOnly: true
+          example: 1
+        nombre:
+          maxLength: 20
+          type: string
+          example: Sexto
+      example:
+        id_grado: 1
+        nombre: Sexto
+    Grupo:
+      required:
+      - id_grado
+      - id_jornada
+      - id_sede
+      - nombre
+      type: object
+      properties:
+        id_grupo:
+          type: integer
+          readOnly: true
+          example: 1
+        nombre:
+          maxLength: 10
+          type: string
+          example: 6A
+        id_grado:
+          type: integer
+          example: 1
+        id_sede:
+          type: integer
+          example: 1
+        id_jornada:
+          type: integer
+          example: 1
+      example:
+        id_grupo: 1
+        id_sede: 1
+        id_grado: 1
+        id_jornada: 1
+        nombre: 6A
+    Jornada:
+      required:
+      - nombre
+      type: object
+      properties:
+        id_jornada:
+          type: integer
+          readOnly: true
+          example: 1
+        nombre:
+          maxLength: 50
+          type: string
+          example: Mañana
+      example:
+        id_jornada: 1
+        nombre: Mañana
+    Asignatura:
+      required:
+      - nombre
+      type: object
+      properties:
+        id_asignatura:
+          type: integer
+          readOnly: true
+          example: 1
+        nombre:
+          maxLength: 100
+          type: string
+          example: Matemáticas
+        intensidad_horaria:
+          type: integer
+          example: 5
+      example:
+        intensidad_horaria: 5
+        id_asignatura: 1
+        nombre: Matemáticas
+    GradoAsignatura:
+      required:
+      - id_asignatura
+      - id_grado
+      type: object
+      properties:
+        id_grado:
+          type: integer
+          example: 1
+        id_asignatura:
+          type: integer
+          example: 1
+      example:
+        id_asignatura: 1
+        id_grado: 1
+    Estudiante:
+      required:
+      - apellidos
+      - documento_identidad
+      - nombres
+      - tipo_documento
+      type: object
+      properties:
+        documento_identidad:
+          pattern: "^[0-9]{8,10}$"
+          type: string
+          example: "1023456789"
+        tipo_documento:
+          type: string
+          example: TI
+          enum:
+          - CC
+          - TI
+          - RC
+          - CE
+          - PA
+        fecha_nacimiento:
+          type: string
+          description: Debe ser una fecha pasada
+          format: date
+          example: 2010-05-15
+        telefono:
+          pattern: "^\\+?[0-9]{7,15}$"
+          type: string
+          example: "+573101234567"
+        correo_electronico:
+          maxLength: 100
+          type: string
+          format: email
+          example: juan.perez@ejemplo.com
+        id_estudiante:
+          type: integer
+          readOnly: true
+          example: 1
+        nombres:
+          maxLength: 100
+          type: string
+          example: Juan Carlos
+        apellidos:
+          maxLength: 100
+          type: string
+          example: Pérez Rodríguez
+        direccion:
+          maxLength: 150
+          type: string
+          example: "Calle 10 #15-30"
+        id_municipio:
+          type: integer
+          example: 1
+      example:
+        apellidos: Pérez Rodríguez
+        documento_identidad: "1023456789"
+        tipo_documento: TI
+        correo_electronico: juan.perez@ejemplo.com
+        id_estudiante: 1
+        id_municipio: 1
+        fecha_nacimiento: 2010-05-15T00:00:00.000+00:00
+        direccion: "Calle 10 #15-30"
+        telefono: "+573101234567"
+        nombres: Juan Carlos
+    Docente:
+      required:
+      - apellidos
+      - documento_identidad
+      - nombres
+      - tipo_documento
+      type: object
+      properties:
+        id_docente:
+          type: integer
+          readOnly: true
+          example: 1
+        nombres:
+          maxLength: 100
+          type: string
+          example: María José
+        apellidos:
+          maxLength: 100
+          type: string
+          example: Gómez Sánchez
+        documento_identidad:
+          maxLength: 20
+          type: string
+          example: "52123456"
+        tipo_documento:
+          type: string
+          example: CC
+          enum:
+          - CC
+          - TI
+          - CE
+          - PA
+        profesion:
+          maxLength: 100
+          type: string
+          example: Licenciado en Matemáticas
+        telefono:
+          maxLength: 20
+          type: string
+          example: "3157891234"
+        correo_electronico:
+          maxLength: 100
+          type: string
+          example: maria.gomez@ejemplo.com
+      example:
+        apellidos: Gómez Sánchez
+        documento_identidad: "52123456"
+        tipo_documento: CC
+        correo_electronico: maria.gomez@ejemplo.com
+        id_docente: 1
+        profesion: Licenciado en Matemáticas
+        telefono: "3157891234"
+        nombres: María José
+    CargaAcademica:
+      required:
+      - id_anio_lectivo
+      - id_asignatura
+      - id_docente
+      - id_grupo
+      type: object
+      properties:
+        id_carga:
+          type: integer
+          readOnly: true
+          example: 1
+        id_docente:
+          type: integer
+          example: 1
+        id_grupo:
+          type: integer
+          example: 1
+        id_asignatura:
+          type: integer
+          example: 1
+        id_anio_lectivo:
+          type: integer
+          example: 1
+      example:
+        id_grupo: 1
+        id_anio_lectivo: 1
+        id_asignatura: 1
+        id_docente: 1
+        id_carga: 1
+    Periodo:
+      required:
+      - fecha_fin
+      - fecha_inicio
+      - id_anio_lectivo
+      - nombre
+      type: object
+      properties:
+        id_periodo:
+          type: integer
+          readOnly: true
+          example: 1
+        nombre:
+          maxLength: 50
+          type: string
+          example: Primer Periodo
+        fecha_inicio:
+          type: string
+          format: date
+          example: 2025-01-15
+        fecha_fin:
+          type: string
+          format: date
+          example: 2025-04-15
+        id_anio_lectivo:
+          type: integer
+          example: 1
+      example:
+        fecha_inicio: 2025-01-15T00:00:00.000+00:00
+        id_anio_lectivo: 1
+        fecha_fin: 2025-04-15T00:00:00.000+00:00
+        nombre: Primer Periodo
+        id_periodo: 1
+    AnioLectivo:
+      required:
+      - anio
+      - fecha_fin
+      - fecha_inicio
+      type: object
+      properties:
+        id_anio_lectivo:
+          type: integer
+          readOnly: true
+          example: 1
+        anio:
+          type: integer
+          example: 2025
+        fecha_inicio:
+          type: string
+          format: date
+          example: 2025-01-15
+        fecha_fin:
+          type: string
+          format: date
+          example: 2025-11-30
+        estado:
+          type: string
+          example: ACTIVO
+          enum:
+          - ACTIVO
+          - CERRADO
+          - PLANEACION
+      example:
+        estado: ACTIVO
+        fecha_inicio: 2025-01-15T00:00:00.000+00:00
+        id_anio_lectivo: 1
+        fecha_fin: 2025-11-30T00:00:00.000+00:00
+        anio: 2025
+    TipoEvaluacion:
+      required:
+      - nombre
+      type: object
+      properties:
+        id_tipo_evaluacion:
+          type: integer
+          readOnly: true
+          example: 1
+        nombre:
+          maxLength: 50
+          type: string
+          example: Examen Final
+        descripcion:
+          maxLength: 255
+          type: string
+          example: Evaluación del periodo correspondiente al 40% de la nota final
+    Evaluacion:
+      required:
+      - id_carga_academica
+      - id_periodo
+      - id_tipo_evaluacion
+      - nombre
+      type: object
+      properties:
+        id_evaluacion:
+          type: integer
+          readOnly: true
+          example: 1
+        id_carga_academica:
+          type: integer
+          example: 1
+        id_periodo:
+          type: integer
+          example: 1
+        id_tipo_evaluacion:
+          type: integer
+          example: 1
+        id_logro:
+          type: integer
+          example: 1
+        nombre:
+          maxLength: 100
+          type: string
+          example: Evaluación parcial de ecuaciones
+        descripcion:
+          type: string
+          example: Evaluación sobre resolución de ecuaciones de primer grado
+        fecha_presentacion:
+          type: string
+          format: date
+          example: 2025-03-15
+      example:
+        descripcion: Evaluación sobre resolución de ecuaciones de primer grado
+        id_logro: 1
+        fecha_presentacion: 2025-03-15T00:00:00.000+00:00
+        id_carga_academica: 1
+        id_evaluacion: 1
+        id_tipo_evaluacion: 1
+        nombre: Evaluación parcial de ecuaciones
+        id_periodo: 1
+    Pregunta:
+      required:
+      - enunciado
+      - id_evaluacion
+      - tipo
+      type: object
+      properties:
+        id_pregunta:
+          type: integer
+          readOnly: true
+          example: 1
+        id_evaluacion:
+          type: integer
+          example: 1
+        enunciado:
+          maxLength: 500
+          type: string
+          example: "Resolver la ecuación: 2x + 5 = 15"
+        tipo:
+          type: string
+          example: ABIERTA
+          enum:
+          - ABIERTA
+          - OPCION_MULTIPLE
+          - VERDADERO_FALSO
+        peso:
+          maximum: 5
+          minimum: 0.01
+          type: number
+          format: float
+          example: 1
+          default: 1
+    OpcionRespuesta:
+      required:
+      - id_pregunta
+      - texto
+      type: object
+      properties:
+        id_opcion:
+          type: integer
+          readOnly: true
+          example: 1
+        id_pregunta:
+          type: integer
+          example: 1
+        texto:
+          maxLength: 300
+          type: string
+          example: x = 5
+        es_correcta:
+          type: boolean
+          example: true
+    Calificacion:
+      required:
+      - id_evaluacion
+      - id_matricula
+      - nota
+      type: object
+      properties:
+        id_calificacion:
+          type: integer
+          readOnly: true
+          example: 1
+        id_evaluacion:
+          type: integer
+          example: 1
+        id_matricula:
+          type: integer
+          example: 1
+        nota:
+          maximum: 5
+          minimum: 0
+          type: number
+          format: float
+          example: 4.5
+        observaciones:
+          maxLength: 255
+          type: string
+          example: Buen desempeño en resolución de problemas
+        fecha_calificacion:
+          type: string
+          format: date-time
+          example: 2025-03-16T10:30:00Z
+      example:
+        id_matricula: 1
+        id_calificacion: 1
+        id_evaluacion: 1
+        observaciones: Buen desempeño en resolución de problemas
+        nota: 4.5
+        fecha_calificacion: 2025-03-16T10:30:00Z
+    RespuestaEstudiante:
+      required:
+      - id_calificacion
+      - id_pregunta
+      type: object
+      properties:
+        id_respuesta:
+          type: integer
+          readOnly: true
+          example: 1
+        id_pregunta:
+          type: integer
+          example: 1
+        id_calificacion:
+          type: integer
+          example: 1
+        respuesta:
+          maxLength: 1000
+          type: string
+          example: "x = 5 porque despejando la x: 2x = 10, entonces x = 5"
+        puntaje_obtenido:
+          type: number
+          format: float
+          example: 1
+        id_opcion_seleccionada:
+          type: integer
+          example: 2
+    Matricula:
+      required:
+      - id_anio_lectivo
+      - id_estudiante
+      - id_grupo
+      type: object
+      properties:
+        id_matricula:
+          type: integer
+          readOnly: true
+          example: 1
+        id_estudiante:
+          type: integer
+          example: 1
+        id_grupo:
+          type: integer
+          example: 1
+        id_anio_lectivo:
+          type: integer
+          example: 1
+        fecha_matricula:
+          type: string
+          format: date
+          example: 2025-01-10
+        estado:
+          type: string
+          example: ACTIVO
+          enum:
+          - ACTIVO
+          - DESERTOR
+          - PROMOVIDO
+          - RETIRADO
+          - GRADUADO
+      example:
+        id_matricula: 1
+        id_grupo: 1
+        estado: ACTIVO
+        id_anio_lectivo: 1
+        id_estudiante: 1
+        fecha_matricula: 2025-01-10T00:00:00.000+00:00
+    Asistencia:
+      required:
+      - estado
+      - fecha
+      - id_matricula
+      type: object
+      properties:
+        id_asistencia:
+          type: integer
+          readOnly: true
+          example: 1
+        id_matricula:
+          type: integer
+          example: 1
+        fecha:
+          type: string
+          format: date
+          example: 2025-03-15
+        estado:
+          type: string
+          example: PRESENTE
+          enum:
+          - PRESENTE
+          - AUSENTE
+          - TARDE
+          - JUSTIFICADO
+        observaciones:
+          maxLength: 255
+          type: string
+          example: Llegó 10 minutos tarde por transporte
+        fecha_registro:
+          type: string
+          format: date-time
+          example: 2025-03-15T08:15:00Z
+      example:
+        id_matricula: 1
+        id_asistencia: 1
+        fecha: 2025-03-15T00:00:00.000+00:00
+        estado: PRESENTE
+        fecha_registro: 2025-03-15T08:15:00Z
+        observaciones: Llegó 10 minutos tarde por transporte
+    ObservacionComportamiento:
+      required:
+      - descripcion
+      - id_docente_observador
+      - id_matricula
+      type: object
+      properties:
+        id_observacion:
+          type: integer
+          readOnly: true
+          example: 1
+        id_matricula:
+          type: integer
+          example: 1
+        id_docente_observador:
+          type: integer
+          example: 1
+        id_carga_academica:
+          type: integer
+          example: 1
+        fecha_hora:
+          type: string
+          format: date-time
+          example: 2025-03-15T09:30:00Z
+        descripcion:
+          type: string
+          example: El estudiante mostró un comportamiento disruptivo durante la clase
+        tipo_observacion:
+          maxLength: 50
+          type: string
+          example: DISCIPLINARIO
+        acciones_tomadas:
+          maxLength: 500
+          type: string
+          example: Se estableció diálogo con el estudiante y se acordaron compromisos
+      example:
+        id_matricula: 1
+        descripcion: El estudiante mostró un comportamiento disruptivo durante la
+          clase
+        id_carga_academica: 1
+        acciones_tomadas: Se estableció diálogo con el estudiante y se acordaron compromisos
+        id_docente_observador: 1
+        fecha_hora: 2025-03-15T09:30:00Z
+        id_observacion: 1
+        tipo_observacion: DISCIPLINARIO
+    Acudiente:
+      required:
+      - apellidos
+      - documento_identidad
+      - nombres
+      - telefono
+      - tipo_documento
+      type: object
+      properties:
+        id_acudiente:
+          type: integer
+          readOnly: true
+          example: 1
+        nombres:
+          maxLength: 100
+          type: string
+          example: Pedro
+        apellidos:
+          maxLength: 100
+          type: string
+          example: Pérez Gómez
+        documento_identidad:
+          maxLength: 20
+          type: string
+          example: "79123456"
+        tipo_documento:
+          type: string
+          example: CC
+          enum:
+          - CC
+          - CE
+          - PA
+        telefono:
+          maxLength: 20
+          type: string
+          example: "3157891234"
+        direccion:
+          maxLength: 150
+          type: string
+          example: "Calle 10 #15-30"
+        correo_electronico:
+          maxLength: 100
+          type: string
+          example: pedro.perez@ejemplo.com
+      example:
+        apellidos: Pérez Gómez
+        documento_identidad: "79123456"
+        id_acudiente: 1
+        tipo_documento: CC
+        correo_electronico: pedro.perez@ejemplo.com
+        direccion: "Calle 10 #15-30"
+        telefono: "3157891234"
+        nombres: Pedro
+    EstudianteAcudiente:
+      required:
+      - id_acudiente
+      - id_estudiante
+      type: object
+      properties:
+        id_estudiante:
+          type: integer
+          example: 1
+        id_acudiente:
+          type: integer
+          example: 1
+        parentesco:
+          maxLength: 50
+          type: string
+          example: Padre
+        es_principal:
+          type: boolean
+          example: true
+    Competencia:
+      required:
+      - id_asignatura
+      - id_grado
+      - nombre
+      type: object
+      properties:
+        id_competencia:
+          type: integer
+          readOnly: true
+          example: 1
+        nombre:
+          maxLength: 200
+          type: string
+          example: Razonamiento matemático
+        descripcion:
+          type: string
+          example: Capacidad para analizar y resolver problemas usando herramientas
+            matemáticas
+        id_asignatura:
+          type: integer
+          example: 1
+        id_grado:
+          type: integer
+          example: 1
+      example:
+        descripcion: Capacidad para analizar y resolver problemas usando herramientas
+          matemáticas
+        id_asignatura: 1
+        id_grado: 1
+        id_competencia: 1
+        nombre: Razonamiento matemático
+    Logro:
+      required:
+      - descripcion
+      - id_competencia
+      - id_periodo
+      type: object
+      properties:
+        id_logro:
+          type: integer
+          readOnly: true
+          example: 1
+        descripcion:
+          type: string
+          example: Resuelve problemas que involucran ecuaciones de primer grado
+        id_competencia:
+          type: integer
+          example: 1
+        id_periodo:
+          type: integer
+          example: 1
+        porcentaje:
+          maximum: 100
+          minimum: 0
+          type: number
+          format: float
+          example: 25
+      example:
+        descripcion: Resuelve problemas que involucran ecuaciones de primer grado
+        id_logro: 1
+        porcentaje: 25
+        id_competencia: 1
+        id_periodo: 1
+    ActividadRecuperacion:
+      required:
+      - descripcion
+      - fecha
+      - id_calificacion
+      type: object
+      properties:
+        id_recuperacion:
+          type: integer
+          readOnly: true
+          example: 1
+        id_calificacion:
+          type: integer
+          example: 1
+        fecha:
+          type: string
+          format: date
+          example: 2025-04-10
+        descripcion:
+          type: string
+          example: Taller de refuerzo sobre ecuaciones
+        nota_recuperacion:
+          maximum: 5
+          minimum: 0
+          type: number
+          format: float
+          example: 3.5
+        fecha_calificacion:
+          type: string
+          format: date-time
+          example: 2025-04-10T11:30:00Z
+    Usuario:
+      required:
+      - clave
+      - nombre_usuario
+      type: object
+      properties:
+        id_usuario:
+          type: integer
+          readOnly: true
+          example: 1
+        nombre_usuario:
+          maxLength: 50
+          minLength: 5
+          pattern: "^[a-zA-Z0-9_]+$"
+          type: string
+          example: jperez
+        clave:
+          maxLength: 64
+          minLength: 8
+          pattern: "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[@$!%*?&])[A-Za-z\\d@$!%*?&]{8,}$"
+          type: string
+          format: password
+          writeOnly: true
+          example: ContraseñaSegura123!
+        id_docente:
+          type: integer
+          nullable: true
+        id_estudiante:
+          type: integer
+          nullable: true
+          example: 1
+        activo:
+          type: boolean
+          example: true
+        id_rol:
+          type: integer
+          example: 3
+      example:
+        id_rol: 3
+        clave: ContraseñaSegura123!
+        id_usuario: 1
+        id_estudiante: 1
+        id_docente: 0
+        nombre_usuario: jperez
+        activo: true
+    Rol:
+      required:
+      - nombre
+      type: object
+      properties:
+        id_rol:
+          type: integer
+          readOnly: true
+          example: 1
+        nombre:
+          maxLength: 50
+          type: string
+          example: ADMIN
+        descripcion:
+          maxLength: 255
+          type: string
+          example: Administrador del sistema con acceso completo
+        es_rol_sistema:
+          type: boolean
+          example: true
+    Modulo:
+      required:
+      - codigo
+      - nombre
+      type: object
+      properties:
+        id_modulo:
+          type: integer
+          readOnly: true
+          example: 1
+        nombre:
+          maxLength: 50
+          type: string
+          example: Académico
+        descripcion:
+          maxLength: 255
+          type: string
+          example: Gestión de evaluaciones y calificaciones
+        codigo:
+          maxLength: 30
+          type: string
+          example: ACAD
+    Permiso:
+      required:
+      - codigo
+      - id_modulo
+      - nombre
+      type: object
+      properties:
+        id_permiso:
+          type: integer
+          readOnly: true
+          example: 1
+        nombre:
+          maxLength: 100
+          type: string
+          example: Ver notas
+        descripcion:
+          maxLength: 255
+          type: string
+          example: Visualizar calificaciones
+        codigo:
+          maxLength: 30
+          type: string
+          example: ACAD_VIEW_NOTES
+        id_modulo:
+          type: integer
+          example: 2
+    RolPermiso:
+      required:
+      - id_permiso
+      - id_rol
+      type: object
+      properties:
+        id_rol:
+          type: integer
+          example: 1
+        id_permiso:
+          type: integer
+          example: 1
+    Departamento:
+      required:
+      - codigo
+      - nombre
+      type: object
+      properties:
+        id_departamento:
+          type: integer
+          readOnly: true
+          example: 1
+        nombre:
+          maxLength: 100
+          type: string
+          example: Cundinamarca
+        codigo:
+          maxLength: 5
+          type: string
+          example: "25"
+    Municipio:
+      required:
+      - codigo
+      - id_departamento
+      - nombre
+      type: object
+      properties:
+        id_municipio:
+          type: integer
+          readOnly: true
+          example: 1
+        nombre:
+          maxLength: 100
+          type: string
+          example: Bogotá D.C.
+        codigo:
+          maxLength: 5
+          type: string
+          example: "001"
+        id_departamento:
+          type: integer
+          example: 1
+    DiaSemana:
+      required:
+      - codigo
+      - nombre
+      type: object
+      properties:
+        id_dia:
+          type: integer
+          readOnly: true
+          example: 1
+        nombre:
+          maxLength: 20
+          type: string
+          example: Lunes
+        codigo:
+          maximum: 7
+          minimum: 1
+          type: integer
+          example: 1
+    Horario:
+      required:
+      - hora_fin
+      - hora_inicio
+      - id_carga_academica
+      - id_dia
+      type: object
+      properties:
+        id_horario:
+          type: integer
+          readOnly: true
+          example: 1
+        id_carga_academica:
+          type: integer
+          example: 1
+        id_dia:
+          maximum: 7
+          minimum: 1
+          type: integer
+          example: 1
+        hora_inicio:
+          type: string
+          format: time
+          example: 07:00:00
+        hora_fin:
+          type: string
+          format: time
+          example: 07:55:00
+      example:
+        id_dia: 1
+        id_carga_academica: 1
+        hora_inicio: 07:00:00
+        hora_fin: 07:55:00
+        id_horario: 1
+    ArchivoDigital:
+      required:
+      - entidad_relacionada
+      - id_entidad
+      - mime_type
+      - nombre_archivo
+      - ruta_almacenamiento
+      - tipo_archivo
+      type: object
+      properties:
+        id_archivo:
+          type: integer
+          readOnly: true
+          example: 1
+        tipo_archivo:
+          maxLength: 50
+          type: string
+          example: FOTO_ESTUDIANTE
+        nombre_archivo:
+          maxLength: 255
+          type: string
+          example: foto_juan_perez.jpg
+        ruta_almacenamiento:
+          maxLength: 500
+          type: string
+          example: /archivos/estudiantes/fotos/foto_juan_perez.jpg
+        mime_type:
+          maxLength: 100
+          type: string
+          example: image/jpeg
+        fecha_carga:
+          type: string
+          format: date-time
+          example: 2025-01-10T15:30:00Z
+        id_usuario_carga:
+          type: integer
+          example: 1
+        entidad_relacionada:
+          maxLength: 50
+          type: string
+          example: ESTUDIANTE
+        id_entidad:
+          type: integer
+          example: 1
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+          example: validation_error
+          enum:
+          - validation_error
+          - auth_error
+          - not_found
+          - conflict
+        message:
+          type: string
+          example: Error de validación en los datos de entrada
+        details:
+          type: array
+          items:
+            $ref: "#/components/schemas/ErrorResponse_details"
+    inline_response_200:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Institucion"
+        pagination:
+          $ref: "#/components/schemas/inline_response_200_pagination"
+      example:
+        pagination:
+          total: 50
+          offset: 0
+          limit: 20
+        data:
+        - id_institucion: 1
+          nombre: Institución Educativa Distrital Kennedy
+          codigo_dane: "111001107836"
+        - id_institucion: 1
+          nombre: Institución Educativa Distrital Kennedy
+          codigo_dane: "111001107836"
+    inline_response_200_1:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Sede"
+        pagination:
+          $ref: "#/components/schemas/inline_response_200_1_pagination"
+      example:
+        pagination:
+          total: 30
+          offset: 0
+          limit: 20
+        data:
+        - id_institucion: 1
+          id_sede: 1
+          id_municipio: 1
+          direccion: "Calle 5 #10-25, Kennedy"
+          nombre: Sede Principal
+        - id_institucion: 1
+          id_sede: 1
+          id_municipio: 1
+          direccion: "Calle 5 #10-25, Kennedy"
+          nombre: Sede Principal
+    inline_response_200_2:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Grado"
+        pagination:
+          $ref: "#/components/schemas/inline_response_200_2_pagination"
+      example:
+        pagination:
+          total: 15
+          offset: 0
+          limit: 20
+        data:
+        - id_grado: 1
+          nombre: Sexto
+        - id_grado: 1
+          nombre: Sexto
+    inline_response_200_3:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Grupo"
+        pagination:
+          $ref: "#/components/schemas/inline_response_200_3_pagination"
+      example:
+        pagination:
+          total: 40
+          offset: 0
+          limit: 20
+        data:
+        - id_grupo: 1
+          id_sede: 1
+          id_grado: 1
+          id_jornada: 1
+          nombre: 6A
+        - id_grupo: 1
+          id_sede: 1
+          id_grado: 1
+          id_jornada: 1
+          nombre: 6A
+    inline_response_200_4:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Jornada"
+        pagination:
+          $ref: "#/components/schemas/inline_response_200_4_pagination"
+      example:
+        pagination:
+          total: 5
+          offset: 0
+          limit: 20
+        data:
+        - id_jornada: 1
+          nombre: Mañana
+        - id_jornada: 1
+          nombre: Mañana
+    inline_response_200_5:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Asignatura"
+        pagination:
+          $ref: "#/components/schemas/inline_response_200_5_pagination"
+      example:
+        pagination:
+          total: 25
+          offset: 0
+          limit: 20
+        data:
+        - intensidad_horaria: 5
+          id_asignatura: 1
+          nombre: Matemáticas
+        - intensidad_horaria: 5
+          id_asignatura: 1
+          nombre: Matemáticas
+    inline_response_200_6:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Estudiante"
+        pagination:
+          $ref: "#/components/schemas/inline_response_200_6_pagination"
+      example:
+        pagination:
+          total: 100
+          offset: 0
+          limit: 20
+        data:
+        - apellidos: Pérez Rodríguez
+          documento_identidad: "1023456789"
+          tipo_documento: TI
+          correo_electronico: juan.perez@ejemplo.com
+          id_estudiante: 1
+          id_municipio: 1
+          fecha_nacimiento: 2010-05-15T00:00:00.000+00:00
+          direccion: "Calle 10 #15-30"
+          telefono: "+573101234567"
+          nombres: Juan Carlos
+        - apellidos: Pérez Rodríguez
+          documento_identidad: "1023456789"
+          tipo_documento: TI
+          correo_electronico: juan.perez@ejemplo.com
+          id_estudiante: 1
+          id_municipio: 1
+          fecha_nacimiento: 2010-05-15T00:00:00.000+00:00
+          direccion: "Calle 10 #15-30"
+          telefono: "+573101234567"
+          nombres: Juan Carlos
+    inline_response_200_7:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Docente"
+        pagination:
+          $ref: "#/components/schemas/inline_response_200_pagination"
+      example:
+        pagination:
+          total: 50
+          offset: 0
+          limit: 20
+        data:
+        - apellidos: Gómez Sánchez
+          documento_identidad: "52123456"
+          tipo_documento: CC
+          correo_electronico: maria.gomez@ejemplo.com
+          id_docente: 1
+          profesion: Licenciado en Matemáticas
+          telefono: "3157891234"
+          nombres: María José
+        - apellidos: Gómez Sánchez
+          documento_identidad: "52123456"
+          tipo_documento: CC
+          correo_electronico: maria.gomez@ejemplo.com
+          id_docente: 1
+          profesion: Licenciado en Matemáticas
+          telefono: "3157891234"
+          nombres: María José
+    inline_response_200_8:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/CargaAcademica"
+        pagination:
+          $ref: "#/components/schemas/inline_response_200_6_pagination"
+      example:
+        pagination:
+          total: 100
+          offset: 0
+          limit: 20
+        data:
+        - id_grupo: 1
+          id_anio_lectivo: 1
+          id_asignatura: 1
+          id_docente: 1
+          id_carga: 1
+        - id_grupo: 1
+          id_anio_lectivo: 1
+          id_asignatura: 1
+          id_docente: 1
+          id_carga: 1
+    inline_response_200_9:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Matricula"
+        pagination:
+          $ref: "#/components/schemas/inline_response_200_9_pagination"
+      example:
+        pagination:
+          total: 0
+          offset: 6
+          limit: 1
+        data:
+        - id_matricula: 1
+          id_grupo: 1
+          estado: ACTIVO
+          id_anio_lectivo: 1
+          id_estudiante: 1
+          fecha_matricula: 2025-01-10T00:00:00.000+00:00
+        - id_matricula: 1
+          id_grupo: 1
+          estado: ACTIVO
+          id_anio_lectivo: 1
+          id_estudiante: 1
+          fecha_matricula: 2025-01-10T00:00:00.000+00:00
+    inline_response_200_10:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Evaluacion"
+        pagination:
+          $ref: "#/components/schemas/inline_response_200_9_pagination"
+      example:
+        pagination:
+          total: 0
+          offset: 6
+          limit: 1
+        data:
+        - descripcion: Evaluación sobre resolución de ecuaciones de primer grado
+          id_logro: 1
+          fecha_presentacion: 2025-03-15T00:00:00.000+00:00
+          id_carga_academica: 1
+          id_evaluacion: 1
+          id_tipo_evaluacion: 1
+          nombre: Evaluación parcial de ecuaciones
+          id_periodo: 1
+        - descripcion: Evaluación sobre resolución de ecuaciones de primer grado
+          id_logro: 1
+          fecha_presentacion: 2025-03-15T00:00:00.000+00:00
+          id_carga_academica: 1
+          id_evaluacion: 1
+          id_tipo_evaluacion: 1
+          nombre: Evaluación parcial de ecuaciones
+          id_periodo: 1
+    inline_response_200_11:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Calificacion"
+        pagination:
+          $ref: "#/components/schemas/inline_response_200_9_pagination"
+      example:
+        pagination:
+          total: 0
+          offset: 6
+          limit: 1
+        data:
+        - id_matricula: 1
+          id_calificacion: 1
+          id_evaluacion: 1
+          observaciones: Buen desempeño en resolución de problemas
+          nota: 4.5
+          fecha_calificacion: 2025-03-16T10:30:00Z
+        - id_matricula: 1
+          id_calificacion: 1
+          id_evaluacion: 1
+          observaciones: Buen desempeño en resolución de problemas
+          nota: 4.5
+          fecha_calificacion: 2025-03-16T10:30:00Z
+    inline_response_200_12:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Asistencia"
+        pagination:
+          $ref: "#/components/schemas/inline_response_200_9_pagination"
+      example:
+        pagination:
+          total: 0
+          offset: 6
+          limit: 1
+        data:
+        - id_matricula: 1
+          id_asistencia: 1
+          fecha: 2025-03-15T00:00:00.000+00:00
+          estado: PRESENTE
+          fecha_registro: 2025-03-15T08:15:00Z
+          observaciones: Llegó 10 minutos tarde por transporte
+        - id_matricula: 1
+          id_asistencia: 1
+          fecha: 2025-03-15T00:00:00.000+00:00
+          estado: PRESENTE
+          fecha_registro: 2025-03-15T08:15:00Z
+          observaciones: Llegó 10 minutos tarde por transporte
+    inline_response_200_13:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Usuario"
+        pagination:
+          $ref: "#/components/schemas/inline_response_200_9_pagination"
+      example:
+        pagination:
+          total: 0
+          offset: 6
+          limit: 1
+        data:
+        - id_rol: 3
+          clave: ContraseñaSegura123!
+          id_usuario: 1
+          id_estudiante: 1
+          id_docente: 0
+          nombre_usuario: jperez
+          activo: true
+        - id_rol: 3
+          clave: ContraseñaSegura123!
+          id_usuario: 1
+          id_estudiante: 1
+          id_docente: 0
+          nombre_usuario: jperez
+          activo: true
+    inline_response_200_14:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/ObservacionComportamiento"
+        pagination:
+          $ref: "#/components/schemas/inline_response_200_9_pagination"
+      example:
+        pagination:
+          total: 0
+          offset: 6
+          limit: 1
+        data:
+        - id_matricula: 1
+          descripcion: El estudiante mostró un comportamiento disruptivo durante la
+            clase
+          id_carga_academica: 1
+          acciones_tomadas: Se estableció diálogo con el estudiante y se acordaron
+            compromisos
+          id_docente_observador: 1
+          fecha_hora: 2025-03-15T09:30:00Z
+          id_observacion: 1
+          tipo_observacion: DISCIPLINARIO
+        - id_matricula: 1
+          descripcion: El estudiante mostró un comportamiento disruptivo durante la
+            clase
+          id_carga_academica: 1
+          acciones_tomadas: Se estableció diálogo con el estudiante y se acordaron
+            compromisos
+          id_docente_observador: 1
+          fecha_hora: 2025-03-15T09:30:00Z
+          id_observacion: 1
+          tipo_observacion: DISCIPLINARIO
+    inline_response_200_15:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Periodo"
+      example:
+        data:
+        - fecha_inicio: 2025-01-15T00:00:00.000+00:00
+          id_anio_lectivo: 1
+          fecha_fin: 2025-04-15T00:00:00.000+00:00
+          nombre: Primer Periodo
+          id_periodo: 1
+        - fecha_inicio: 2025-01-15T00:00:00.000+00:00
+          id_anio_lectivo: 1
+          fecha_fin: 2025-04-15T00:00:00.000+00:00
+          nombre: Primer Periodo
+          id_periodo: 1
+    inline_response_200_16:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/AnioLectivo"
+      example:
+        data:
+        - estado: ACTIVO
+          fecha_inicio: 2025-01-15T00:00:00.000+00:00
+          id_anio_lectivo: 1
+          fecha_fin: 2025-11-30T00:00:00.000+00:00
+          anio: 2025
+        - estado: ACTIVO
+          fecha_inicio: 2025-01-15T00:00:00.000+00:00
+          id_anio_lectivo: 1
+          fecha_fin: 2025-11-30T00:00:00.000+00:00
+          anio: 2025
+    inline_response_200_17:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Acudiente"
+      example:
+        data:
+        - apellidos: Pérez Gómez
+          documento_identidad: "79123456"
+          id_acudiente: 1
+          tipo_documento: CC
+          correo_electronico: pedro.perez@ejemplo.com
+          direccion: "Calle 10 #15-30"
+          telefono: "3157891234"
+          nombres: Pedro
+        - apellidos: Pérez Gómez
+          documento_identidad: "79123456"
+          id_acudiente: 1
+          tipo_documento: CC
+          correo_electronico: pedro.perez@ejemplo.com
+          direccion: "Calle 10 #15-30"
+          telefono: "3157891234"
+          nombres: Pedro
+    inline_response_200_18:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Logro"
+      example:
+        data:
+        - descripcion: Resuelve problemas que involucran ecuaciones de primer grado
+          id_logro: 1
+          porcentaje: 25
+          id_competencia: 1
+          id_periodo: 1
+        - descripcion: Resuelve problemas que involucran ecuaciones de primer grado
+          id_logro: 1
+          porcentaje: 25
+          id_competencia: 1
+          id_periodo: 1
+    inline_response_200_19:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Competencia"
+      example:
+        data:
+        - descripcion: Capacidad para analizar y resolver problemas usando herramientas
+            matemáticas
+          id_asignatura: 1
+          id_grado: 1
+          id_competencia: 1
+          nombre: Razonamiento matemático
+        - descripcion: Capacidad para analizar y resolver problemas usando herramientas
+            matemáticas
+          id_asignatura: 1
+          id_grado: 1
+          id_competencia: 1
+          nombre: Razonamiento matemático
+    inline_response_200_20:
+      type: object
+      properties:
+        data:
+          type: array
+          items:
+            $ref: "#/components/schemas/Horario"
+      example:
+        data:
+        - id_dia: 1
+          id_carga_academica: 1
+          hora_inicio: 07:00:00
+          hora_fin: 07:55:00
+          id_horario: 1
+        - id_dia: 1
+          id_carga_academica: 1
+          hora_inicio: 07:00:00
+          hora_fin: 07:55:00
+          id_horario: 1
+    auth_login_body:
+      required:
+      - nombre_usuario
+      - password
+      type: object
+      properties:
+        nombre_usuario:
+          type: string
+        password:
+          type: string
+    inline_response_200_21:
+      type: object
+      properties:
+        access_token:
+          type: string
+          example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        token_type:
+          type: string
+          example: bearer
+      example:
+        access_token: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+        token_type: bearer
+    auth_refresh_body:
+      required:
+      - refresh_token
+      type: object
+      properties:
+        refresh_token:
+          type: string
+    ErrorResponse_details:
+      type: object
+      properties:
+        field:
+          type: string
+          example: documento_identidad
+        message:
+          type: string
+          example: Debe contener entre 8 y 10 dígitos
+        code:
+          type: string
+          example: invalid_format
+    inline_response_200_pagination:
+      type: object
+      properties:
+        total:
+          type: integer
+          example: 50
+        offset:
+          type: integer
+          example: 0
+        limit:
+          type: integer
+          example: 20
+      example:
+        total: 50
+        offset: 0
+        limit: 20
+    inline_response_200_1_pagination:
+      type: object
+      properties:
+        total:
+          type: integer
+          example: 30
+        offset:
+          type: integer
+          example: 0
+        limit:
+          type: integer
+          example: 20
+      example:
+        total: 30
+        offset: 0
+        limit: 20
+    inline_response_200_2_pagination:
+      type: object
+      properties:
+        total:
+          type: integer
+          example: 15
+        offset:
+          type: integer
+          example: 0
+        limit:
+          type: integer
+          example: 20
+      example:
+        total: 15
+        offset: 0
+        limit: 20
+    inline_response_200_3_pagination:
+      type: object
+      properties:
+        total:
+          type: integer
+          example: 40
+        offset:
+          type: integer
+          example: 0
+        limit:
+          type: integer
+          example: 20
+      example:
+        total: 40
+        offset: 0
+        limit: 20
+    inline_response_200_4_pagination:
+      type: object
+      properties:
+        total:
+          type: integer
+          example: 5
+        offset:
+          type: integer
+          example: 0
+        limit:
+          type: integer
+          example: 20
+      example:
+        total: 5
+        offset: 0
+        limit: 20
+    inline_response_200_5_pagination:
+      type: object
+      properties:
+        total:
+          type: integer
+          example: 25
+        offset:
+          type: integer
+          example: 0
+        limit:
+          type: integer
+          example: 20
+      example:
+        total: 25
+        offset: 0
+        limit: 20
+    inline_response_200_6_pagination:
+      type: object
+      properties:
+        total:
+          type: integer
+          example: 100
+        offset:
+          type: integer
+          example: 0
+        limit:
+          type: integer
+          example: 20
+      example:
+        total: 100
+        offset: 0
+        limit: 20
+    inline_response_200_9_pagination:
+      type: object
+      properties:
+        total:
+          type: integer
+        offset:
+          type: integer
+        limit:
+          type: integer
+      example:
+        total: 0
+        offset: 6
+        limit: 1
+  parameters:
+    apiVersionHeader:
+      name: X-API-Version
+      in: header
+      description: Versión de la API solicitada
+      required: false
+      style: simple
+      explode: false
+      schema:
+        type: string
+        default: "1.0"
+    offsetParam:
+      name: offset
+      in: query
+      description: Número de registros a omitir para paginación
+      required: false
+      style: form
+      explode: true
+      schema:
+        minimum: 0
+        type: integer
+        default: 0
+    limitParam:
+      name: limit
+      in: query
+      description: Número máximo de registros a devolver
+      required: false
+      style: form
+      explode: true
+      schema:
+        maximum: 100
+        minimum: 1
+        type: integer
+        default: 20
+    sortParam:
+      name: sort
+      in: query
+      description: |
+        Campo(s) por los cuales ordenar los resultados. Separar múltiples campos por comas. Prefijar con '-' para orden descendente (ej: "nombre,-fecha_creacion"). Los campos disponibles dependen del recurso solicitado.
+      required: false
+      style: form
+      explode: true
+      schema:
+        type: string
+      example: "nombre,-fecha_registro"
+  securitySchemes:
+    bearerAuth:
+      type: http
+      description: |
+        JWT obtenido del endpoint de autenticación.
+        Ejemplo: Bearer <token>
+      scheme: bearer
+      bearerFormat: JWT

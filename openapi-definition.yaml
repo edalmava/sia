@@ -5,10 +5,8 @@ info:
   description: API para gestión de instituciones educativas públicas en Colombia
 
 servers:
-  - url: https://api.institucioneducativa.co/v1
-    description: Servidor de producción
-  - url: https://staging-api.institucioneducativa.co/v1
-    description: Servidor de pruebas
+  - description: SwaggerHub API Auto Mocking
+    url: https://virtserver.swaggerhub.com/edalmava-030/sia/1.0.0
 
 tags:
   - name: Instituciones
@@ -94,6 +92,19 @@ components:
         minimum: 1
         maximum: 100
         default: 20
+
+    sortParam: # Nuevo parámetro reutilizable
+      name: sort
+      in: query
+      description: >
+        Campo(s) por los cuales ordenar los resultados.
+        Separar múltiples campos por comas.
+        Prefijar con '-' para orden descendente (ej: "nombre,-fecha_creacion").
+        Los campos disponibles dependen del recurso solicitado.
+      required: false
+      schema:
+        type: string
+      example: "nombre,-fecha_registro"
         
   schemas:    
     Institucion:
@@ -827,9 +838,11 @@ components:
           example: "ContraseñaSegura123!"
         id_docente:
           type: integer
+          nullable: true
           example: null
         id_estudiante:
           type: integer
+          nullable: true
           example: 1
         activo:
           type: boolean
@@ -1095,6 +1108,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/offsetParam"
         - $ref: "#/components/parameters/limitParam"
+        - $ref: "#/components/parameters/sortParam" # Añadir esta línea
         - name: nombre
           in: query
           description: Filtrar por nombre
@@ -1249,6 +1263,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/offsetParam"
         - $ref: "#/components/parameters/limitParam"
+        - $ref: "#/components/parameters/sortParam" # Añadir esta línea
         - name: id_institucion
           in: query
           description: Filtrar por institución
@@ -1415,6 +1430,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/offsetParam"
         - $ref: "#/components/parameters/limitParam"
+        - $ref: "#/components/parameters/sortParam" # Añadir esta línea
         - name: nombre
           in: query
           description: Filtrar por nombre
@@ -1659,6 +1675,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/offsetParam"
         - $ref: "#/components/parameters/limitParam"
+        - $ref: "#/components/parameters/sortParam" # Añadir esta línea
         - name: id_grado
           in: query
           description: Filtrar por grado
@@ -1825,6 +1842,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/offsetParam"
         - $ref: "#/components/parameters/limitParam"
+        - $ref: "#/components/parameters/sortParam" # Añadir esta línea
         - name: nombre
           in: query
           description: Filtrar por nombre
@@ -1979,6 +1997,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/offsetParam"
         - $ref: "#/components/parameters/limitParam"
+        - $ref: "#/components/parameters/sortParam" # Añadir esta línea
         - name: nombre
           in: query
           description: Filtrar por nombre
@@ -2133,6 +2152,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/offsetParam"
         - $ref: "#/components/parameters/limitParam"
+        - $ref: "#/components/parameters/sortParam" # Añadir esta línea
         - name: nombres
           in: query
           description: Filtrar por nombres del estudiante
@@ -2301,6 +2321,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/offsetParam"
         - $ref: "#/components/parameters/limitParam"
+        - $ref: "#/components/parameters/sortParam" # Añadir esta línea
         - name: nombres
           in: query
           description: Filtrar por nombres del docente
@@ -2461,6 +2482,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/offsetParam"
         - $ref: "#/components/parameters/limitParam"
+        - $ref: "#/components/parameters/sortParam" # Añadir esta línea
         - name: id_docente
           in: query
           description: Filtrar por ID de docente
@@ -2627,6 +2649,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/offsetParam"
         - $ref: "#/components/parameters/limitParam"
+        - $ref: "#/components/parameters/sortParam" # Añadir esta línea
         - name: id_estudiante
           in: query
           description: Filtrar por ID de estudiante
@@ -2790,6 +2813,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/offsetParam"
         - $ref: "#/components/parameters/limitParam"
+        - $ref: "#/components/parameters/sortParam" # Añadir esta línea
         - name: id_carga_academica
           in: query
           required: false
@@ -2945,6 +2969,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/offsetParam"
         - $ref: "#/components/parameters/limitParam"
+        - $ref: "#/components/parameters/sortParam" # Añadir esta línea
         - name: id_evaluacion
           in: query
           required: false
@@ -3098,6 +3123,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/offsetParam"
         - $ref: "#/components/parameters/limitParam"
+        - $ref: "#/components/parameters/sortParam" # Añadir esta línea
         - name: id_matricula
           in: query
           required: false
@@ -3252,6 +3278,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/offsetParam"
         - $ref: "#/components/parameters/limitParam"
+        - $ref: "#/components/parameters/sortParam" # Añadir esta línea
         - name: nombre_usuario
           in: query
           description: Filtrar por nombre de usuario
@@ -3431,6 +3458,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/offsetParam"
         - $ref: "#/components/parameters/limitParam"
+        - $ref: "#/components/parameters/sortParam" # Añadir esta línea
         - name: id_matricula
           in: query
           schema:
@@ -3546,6 +3574,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/offsetParam"
         - $ref: "#/components/parameters/limitParam"
+        - $ref: "#/components/parameters/sortParam" # Añadir esta línea
       responses:
         '200':
           description: Lista de periodos
@@ -3646,6 +3675,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/offsetParam"
         - $ref: "#/components/parameters/limitParam"
+        - $ref: "#/components/parameters/sortParam" # Añadir esta línea
       responses:
         '200':
           description: Lista de años lectivos
@@ -3746,6 +3776,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/offsetParam"
         - $ref: "#/components/parameters/limitParam"
+        - $ref: "#/components/parameters/sortParam" # Añadir esta línea
       responses:
         '200':
           description: Lista de acudientes
@@ -3844,6 +3875,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/offsetParam"
         - $ref: "#/components/parameters/limitParam"
+        - $ref: "#/components/parameters/sortParam" # Añadir esta línea
         - name: id_competencia
           in: query
           schema:
@@ -3946,6 +3978,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/offsetParam"
         - $ref: "#/components/parameters/limitParam"
+        - $ref: "#/components/parameters/sortParam" # Añadir esta línea
         - name: id_asignatura
           in: query
           schema:
@@ -4048,6 +4081,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/offsetParam"
         - $ref: "#/components/parameters/limitParam"
+        - $ref: "#/components/parameters/sortParam" # Añadir esta línea
         - name: id_grupo
           in: query
           schema:
@@ -4163,7 +4197,7 @@ paths:
                 password:
                   type: string
               required:
-                - username
+                - nombre_usuario
                 - password
       responses:
         '200':
