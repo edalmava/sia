@@ -1,0 +1,21 @@
+# Binarios
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Dependencias
+/vendor
+
+# Archivos de IDE
+.idea/
+*.iml
+
+# Logs
+logs/
+
+# Archivos generados por el sistema operativo
+.DS_Store
+
+# Otros
+.env
