@@ -1,0 +1,361 @@
+erDiagram
+    %% Tablas principales institucionales
+    INSTITUCION {
+        int id_institucion PK
+        varchar nombre
+        varchar codigo_dane
+    }
+    
+    SEDE {
+        int id_sede PK
+        varchar nombre
+        varchar direccion
+        int id_institucion FK
+        int id_municipio FK
+    }
+    
+    JORNADA {
+        int id_jornada PK
+        varchar nombre
+    }
+    
+    GRADO {
+        int id_grado PK
+        varchar nombre
+    }
+    
+    GRUPO {
+        int id_grupo PK
+        varchar nombre
+        int id_grado FK
+        int id_sede FK
+        int id_jornada FK
+    }
+    
+    %% Tablas de personas
+    ESTUDIANTE {
+        int id_estudiante PK
+        varchar nombres
+        varchar apellidos
+        varchar documento_identidad
+        date fecha_nacimiento
+        varchar tipo_documento
+        varchar telefono
+        varchar correo_electronico
+        varchar direccion
+        int id_municipio FK
+    }
+    
+    DOCENTE {
+        int id_docente PK
+        varchar nombres
+        varchar apellidos
+        varchar documento_identidad
+        varchar profesion
+        varchar tipo_documento
+        varchar telefono
+        varchar correo_electronico
+    }
+    
+    ACUDIENTE {
+        int id_acudiente PK
+        varchar nombres
+        varchar apellidos
+        varchar documento_identidad
+        varchar tipo_documento
+        varchar telefono
+        varchar direccion
+        varchar correo_electronico
+    }
+    
+    ESTUDIANTE_ACUDIENTE {
+        int id_estudiante PK,FK
+        int id_acudiente PK,FK
+        varchar parentesco
+        boolean es_principal
+    }
+    
+    %% Tablas académicas
+    ASIGNATURA {
+        int id_asignatura PK
+        varchar nombre
+        int intensidad_horaria
+    }
+    
+    ANIO_LECTIVO {
+        int id_anio_lectivo PK
+        int anio
+        date fecha_inicio
+        date fecha_fin
+        varchar estado
+    }
+    
+    PERIODO {
+        int id_periodo PK
+        varchar nombre
+        date fecha_inicio
+        date fecha_fin
+        int id_anio_lectivo FK
+    }
+    
+    GRADO_ASIGNATURA {
+        int id_grado PK,FK
+        int id_asignatura PK,FK
+    }
+    
+    MATRICULA {
+        int id_matricula PK
+        int id_estudiante FK
+        int id_grupo FK
+        date fecha_matricula
+        varchar estado
+        int id_anio_lectivo FK
+    }
+    
+    CARGA_ACADEMICA {
+        int id_carga PK
+        int id_docente FK
+        int id_grupo FK
+        int id_asignatura FK
+        int id_anio_lectivo FK
+    }
+    
+    %% Tablas de evaluación
+    TIPO_EVALUACION {
+        int id_tipo_evaluacion PK
+        varchar nombre
+        varchar descripcion
+    }
+    
+    EVALUACION {
+        int id_evaluacion PK
+        int id_carga_academica FK
+        int id_periodo FK
+        int id_tipo_evaluacion FK
+        varchar nombre
+        text descripcion
+        date fecha_presentacion
+        int id_logro FK
+    }
+    
+    PREGUNTA {
+        int id_pregunta PK
+        int id_evaluacion FK
+        varchar enunciado
+        varchar tipo
+        numeric peso
+    }
+    
+    OPCION_RESPUESTA {
+        int id_opcion PK
+        int id_pregunta FK
+        varchar texto
+        boolean es_correcta
+    }
+    
+    CALIFICACION {
+        int id_calificacion PK
+        int id_evaluacion FK
+        int id_matricula FK
+        numeric nota
+        varchar observaciones
+        timestamp fecha_calificacion
+    }
+    
+    RESPUESTA_ESTUDIANTE {
+        int id_respuesta PK
+        int id_pregunta FK
+        int id_calificacion FK
+        varchar respuesta
+        numeric puntaje_obtenido
+        int id_opcion_seleccionada FK
+    }
+    
+    ACTIVIDAD_RECUPERACION {
+        int id_recuperacion PK
+        int id_calificacion FK
+        date fecha
+        text descripcion
+        numeric nota_recuperacion
+        timestamp fecha_calificacion
+    }
+    
+    %% Tablas de competencias y logros
+    COMPETENCIA {
+        int id_competencia PK
+        varchar nombre
+        text descripcion
+        int id_asignatura FK
+        int id_grado FK
+    }
+    
+    LOGRO {
+        int id_logro PK
+        text descripcion
+        int id_competencia FK
+        int id_periodo FK
+        numeric porcentaje
+    }
+    
+    %% Tablas de asistencia y comportamiento
+    ASISTENCIA {
+        int id_asistencia PK
+        int id_matricula FK
+        date fecha
+        varchar estado
+        varchar observaciones
+        timestamp fecha_registro
+    }
+    
+    OBSERVACION_COMPORTAMIENTO {
+        int id_observacion PK
+        int id_matricula FK
+        int id_docente_observador FK
+        int id_carga_academica FK
+        timestamp fecha_hora
+        text descripcion
+        varchar tipo_observacion
+        varchar acciones_tomadas
+    }
+    
+    %% Tablas para ubicación
+    DEPARTAMENTO {
+        int id_departamento PK
+        varchar nombre
+        varchar codigo
+    }
+    
+    MUNICIPIO {
+        int id_municipio PK
+        varchar nombre
+        varchar codigo
+        int id_departamento FK
+    }
+    
+    %% Tablas para horarios
+    DIA_SEMANA {
+        int id_dia PK
+        varchar nombre
+        smallint codigo
+    }
+    
+    HORARIO {
+        int id_horario PK
+        int id_carga_academica FK
+        smallint id_dia FK
+        time hora_inicio
+        time hora_fin
+    }
+    
+    %% Tablas para archivos
+    ARCHIVO_DIGITAL {
+        int id_archivo PK
+        varchar tipo_archivo
+        varchar nombre_archivo
+        varchar ruta_almacenamiento
+        varchar mime_type
+        timestamp fecha_carga
+        int id_usuario_carga FK
+        varchar entidad_relacionada
+        int id_entidad
+    }
+    
+    %% Tablas para seguridad y permisos
+    USUARIOS {
+        int id_usuario PK
+        varchar nombre_usuario
+        varchar clave
+        int id_docente FK
+        int id_estudiante FK
+        boolean activo
+        varchar salt
+        int id_rol FK
+    }
+    
+    MODULO {
+        int id_modulo PK
+        varchar nombre
+        varchar descripcion
+        varchar codigo
+    }
+    
+    PERMISO {
+        int id_permiso PK
+        varchar nombre
+        varchar descripcion
+        varchar codigo
+        int id_modulo FK
+    }
+    
+    ROL {
+        int id_rol PK
+        varchar nombre
+        varchar descripcion
+        boolean es_rol_sistema
+    }
+    
+    ROL_PERMISO {
+        int id_rol PK,FK
+        int id_permiso PK,FK
+    }
+
+    %% Relaciones principales
+    INSTITUCION ||--o{ SEDE : tiene
+    SEDE }|--o{ GRUPO : contiene
+    GRADO ||--o{ GRUPO : clasifica
+    JORNADA ||--o{ GRUPO : define
+    
+    ESTUDIANTE ||--o{ MATRICULA : se_registra_en
+    GRUPO ||--o{ MATRICULA : incluye
+    ANIO_LECTIVO ||--o{ MATRICULA : corresponde_a
+    MATRICULA ||--o{ CALIFICACION : recibe
+    MATRICULA ||--o{ ASISTENCIA : registra
+    MATRICULA ||--o{ OBSERVACION_COMPORTAMIENTO : tiene
+    
+    ESTUDIANTE }o--o{ ACUDIENTE : tiene_como_acudiente
+    
+    DOCENTE ||--o{ CARGA_ACADEMICA : es_asignado_a
+    GRUPO ||--o{ CARGA_ACADEMICA : es_asignado
+    ASIGNATURA ||--o{ CARGA_ACADEMICA : es_parte_de
+    ANIO_LECTIVO ||--o{ CARGA_ACADEMICA : ocurre_en
+    
+    GRADO }o--o{ ASIGNATURA : incluye
+    
+    ANIO_LECTIVO ||--o{ PERIODO : se_divide_en
+    
+    ASIGNATURA ||--o{ COMPETENCIA : tiene
+    GRADO ||--o{ COMPETENCIA : define
+    COMPETENCIA ||--o{ LOGRO : establece
+    PERIODO ||--o{ LOGRO : evalua_en
+    
+    CARGA_ACADEMICA ||--o{ EVALUACION : programa
+    PERIODO ||--o{ EVALUACION : pertenece_a
+    TIPO_EVALUACION ||--o{ EVALUACION : clasifica
+    LOGRO ||--o{ EVALUACION : mide
+    
+    EVALUACION ||--o{ PREGUNTA : compuesta_por
+    PREGUNTA ||--o{ OPCION_RESPUESTA : contiene
+    
+    EVALUACION ||--o{ CALIFICACION : genera
+    CALIFICACION ||--o{ RESPUESTA_ESTUDIANTE : registra
+    PREGUNTA ||--o{ RESPUESTA_ESTUDIANTE : responde
+    OPCION_RESPUESTA ||--o{ RESPUESTA_ESTUDIANTE : selecciona
+    
+    CALIFICACION ||--o{ ACTIVIDAD_RECUPERACION : puede_tener
+    
+    CARGA_ACADEMICA ||--o{ HORARIO : programa
+    DIA_SEMANA ||--o{ HORARIO : ocurre_en
+    
+    DEPARTAMENTO ||--o{ MUNICIPIO : contiene
+    MUNICIPIO ||--o{ ESTUDIANTE : reside_en
+    MUNICIPIO ||--o{ SEDE : ubicada_en
+    
+    DOCENTE ||--o{ OBSERVACION_COMPORTAMIENTO : registra
+    
+    MODULO ||--o{ PERMISO : agrupa
+    ROL }o--o{ PERMISO : tiene_asignado
+    
+    ROL ||--o{ USUARIOS : tiene_rol
+    ESTUDIANTE |o--o| USUARIOS : puede_tener
+    DOCENTE |o--o| USUARIOS : puede_tener
+    USUARIOS ||--o{ ARCHIVO_DIGITAL : carga
