@@ -17,6 +17,6 @@ func NewRouter() *mux.Router {
 
 	r.HandleFunc("/", handlers.HomeHandler).Methods("GET")
 	r.Handle("/about", auth.JwtMiddleware(http.HandlerFunc(handlers.AboutHandler))).Methods("GET")
-	r.HandleFunc("/login", handlers.LoginHandler).Methods("GET")
+	r.Handle("/login", middleware.JsonBodyMiddleware(http.HandlerFunc(handlers.LoginHandler))).Methods("POST")
 	return r
 }

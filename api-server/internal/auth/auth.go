@@ -50,22 +50,17 @@ func JwtMiddleware(next http.Handler) http.Handler {
 }
 
 // GenerateToken genera un nuevo token JWT.
-func GenerateToken() (string, error) {
-	// Definir el tiempo de expiración del token (ejemplo: 1 hora)
+func GenerateToken(username string) (string, error) {
 	expirationTime := time.Now().Add(1 * time.Hour)
-
-	// Crear las claims (datos que irán dentro del token)
 	claims := &Claims{
-		Username: "testuser", // En un escenario real, esto se obtendría del usuario
+		Username: username,
 		RegisteredClaims: jwt.RegisteredClaims{
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 		},
 	}
 
-	// Crear el token con las claims y el algoritmo de firma
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 
-	// Firmar el token con la clave secreta
 	tokenString, err := token.SignedString(jwtKey)
 	if err != nil {
 		return "", fmt.Errorf("failed to sign token: %w", err)
