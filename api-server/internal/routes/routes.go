@@ -15,8 +15,8 @@ func NewRouter() *mux.Router {
 	r.Use(middleware.CorsMiddleware)
 	r.Use(middleware.LoggingMiddleware)
 
-	r.HandleFunc("/", handlers.HomeHandler).Methods("GET")
-	r.Handle("/about", auth.JwtMiddleware(http.HandlerFunc(handlers.AboutHandler))).Methods("GET")
-	r.Handle("/login", middleware.JsonBodyMiddleware(http.HandlerFunc(handlers.LoginHandler))).Methods("POST")
+	r.HandleFunc("/", handlers.HomeHandler).Methods(http.MethodGet)
+	r.Handle("/about", auth.JwtMiddleware(http.HandlerFunc(handlers.AboutHandler))).Methods(http.MethodGet)
+	r.Handle("/login", middleware.JsonBodyMiddleware(http.HandlerFunc(handlers.LoginHandler))).Methods(http.MethodPost)
 	return r
 }
