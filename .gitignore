@@ -1,0 +1,106 @@
+bd_institucion_educativa_colombia_actualizado.sql
+/Scripts
+/PowerShell
+*.sqlite3
+*/venv
+
+# Django #
+*.log
+*.pot
+*.pyc
+__pycache__/
+local_settings.py
+db.sqlite3
+db.sqlite3-journal
+media
+
+# Si estás usando pipenv
+Pipfile.lock
+
+# Entorno virtual
+venv/
+env/
+ENV/
+.env
+.venv
+env.bak/
+venv.bak/
+
+# Distribución / empaquetado
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+*.manifest
+*.spec
+
+# Instalador Logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Tests unitarios / reportes
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+.pytest_cache/
+
+# Traducciones
+*.mo
+
+# Archivos de Mr Developer
+.mr.developer.cfg
+.project
+.pydevproject
+
+# Archivo de cuerda
+.rope-project
+
+# Django staticfiles
+staticfiles/
+
+# Documentación
+docs/_build/
+
+# PyBuilder
+target/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# IDEs y editores
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Base de datos
+*.sqlite3
+*.sqlite3-journal
+
+# Configuraciones personalizadas de Python
+setup.cfg
+setup.py

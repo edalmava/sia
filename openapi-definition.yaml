@@ -1667,7 +1667,7 @@ paths:
         '409':
           description: No se puede eliminar el recurso por dependencias existentes
 
-  # ========= GRUPOS =========
+  # ========= GRUPOS =========  
   /grupos:
     get:
       tags: [Grupos]
@@ -1752,6 +1752,7 @@ paths:
         '403':
           description: Prohibido
 
+  # TODO: Falta el endpoint GET /grupos/{id}/estudiantes → Estudiantes del grupo
   /grupos/{id}:
     get:
       tags: [Grupos]
@@ -2230,7 +2231,8 @@ paths:
           description: No autorizado
         '403':
           description: Prohibido
-
+  
+  # TODO: Falta el endpoint GET /estudiantes/{id}/calificaciones   → Ver notas por estudiante
   /estudiantes/{id}:
     get:
       tags: [Estudiantes]
@@ -4261,3 +4263,9 @@ paths:
           description: Sesión cerrada correctamente
         '401':
           description: Token inválido o ausente
+  
+  # TODO: Falta agregar los endpoints de los reportes
+  # GET    /reportes/boletin/{estudiante_id}      → Generar PDF de boletín individual
+  # GET    /reportes/grupo/{grupo_id}             → Reporte de notas de grupo
+  # GET    /reportes/asistencia/{grupo_id}        → Asistencia del grupo
+  # GET    /reportes/general                      → Estadísticas globales
