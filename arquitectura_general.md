@@ -1,3 +1,39 @@
+# Servicios Principales
+
+## Servidor del profesor
+
+* **Lenguaje**: Go o Python (Django/FastAPI) / Alternativa: .NET Core con C#
+* **Funcionalidad**:
+  - Difusión multicast UDP periódica
+  - Autenticación de clientes vía TLS mutuo (certificados)
+  - Gestión de evaluaciones (crear, enviar, recolectar)
+  - Interfaz de monitoreo en tiempo real (panel docente)
+  - Generación de instaladores personalizados para estudiantes
+  - Almacenamiento local cifrado (AES-256)
+  - Servicio en segundo plano con control desde interfaz o bandeja del sistema
+
+ ## Cliente del Estudiante
+
+* **Lenguaje**: Go o Python
+* **Funcionalidad**:
+  - Escucha en red local (UDP Multicast o mDNS)
+  - Se conecta al servidor por TLS autenticado
+  - Recibe evaluación, muestra GUI en modo quiosco
+  - Envío de respuestas cifradas
+  - Reintentos y almacenamiento offline si se pierde conexión
+  - Servicio de autoinicio en segundo plano
+  - Control desde UI local (WPF/Tauri/Electron)
+ 
+## Flujo de Operación Simplificado
+
+1. Inicio del servidor → difunde su IP y puerto.
+2. Cliente escucha → detecta y conecta vía TLS.
+3. Servidor valida certificado → autentica y responde.
+4. Servidor envía evaluación → cliente la presenta.
+5. Cliente responde → envía cifrado, firma HMAC.
+6. Servidor registra y califica → muestra resultados al docente.
+7. (Si hay caída de red) → cliente almacena local, reintenta.
+
 ```mermaid
 flowchart TD
  subgraph subGraph0["Red LAN"]
