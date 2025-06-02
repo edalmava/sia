@@ -5,6 +5,10 @@ El sistema ha sido diseñado para gestionar de manera integral los grupos por gr
 
 En la fase actual del desarrollo, se han generado los scripts correspondientes al esquema de base de datos en PostgreSQL, así como la especificación técnica de la API conforme al estándar OpenAPI.
 
+## Tabla de Contenido
+
+1. [Arquitectura general del sistema](https://github.com/edalmava/sia/blob/main/arquitectura_general.md "Arquitectura general del sistema")
+
 ```mermaid
 erDiagram
     ESTUDIANTE {
