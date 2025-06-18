@@ -8,6 +8,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"runtime"
 	"sync"
 	"time"
 
@@ -26,15 +27,76 @@ type DiscoveryClient struct {
 	onServerLost  func(string)
 }
 
+// StudentClient cliente que se ejecuta en el computador del estudiante
+type StudentClient struct {
+	config     *ClientConfig
+	clientInfo *ClientInfo
+	serverInfo *ServerInfo
+	udpConn    *net.UDPConn
+	running    bool
+	logger     *log.Logger
+	ctx        context.Context
+	cancel     context.CancelFunc
+	wg         sync.WaitGroup
+
+	// Estado de conexión
+	connected         bool
+	lastHeartbeat     time.Time
+	serverAddr        *net.UDPAddr
+	registrationTries int
+	maxRetries        int
+}
+
+// ClientInfo información del cliente (reutilizada del servidor)
+type ClientInfo struct {
+	ClientID       string         `json:"client_id"`
+	ComputerName   string         `json:"computer_name"`
+	StudentName    string         `json:"student_name,omitempty"`
+	StudentID      string         `json:"student_id,omitempty"`
+	IP             string         `json:"ip"`
+	MAC            string         `json:"mac,omitempty"`
+	LastSeen       time.Time      `json:"last_seen"`
+	Status         string         `json:"status"`
+	CurrentExam    string         `json:"current_exam,omitempty"`
+	ExamStartTime  int64          `json:"exam_start_time,omitempty"`
+	ComputerSpecs  *ComputerSpecs `json:"computer_specs,omitempty"`
+	NetworkLatency int            `json:"network_latency_ms"`
+}
+
+// ComputerSpecs especificaciones del equipo
+type ComputerSpecs struct {
+	OS               string `json:"os"`
+	Architecture     string `json:"architecture"`
+	Memory           string `json:"memory"`
+	Processor        string `json:"processor"`
+	BrowserInfo      string `json:"browser_info,omitempty"`
+	ScreenResolution string `json:"screen_resolution,omitempty"`
+}
+
+// Estructuras de mensajes (reutilizadas del servidor)
+type ClientMessage struct {
+	Type      string      `json:"type"`
+	Action    string      `json:"action"`
+	ClientID  string      `json:"client_id"`
+	Data      *ClientInfo `json:"data"`
+	Timestamp int64       `json:"timestamp"`
+}
+
 // ClientConfig configuración del cliente
 type ClientConfig struct {
-	MulticastAddr      string        `json:"multicast_addr"`
-	MulticastPort      int           `json:"multicast_port"`
-	MDNSServiceType    string        `json:"mdns_service_type"`
-	DiscoveryTimeout   time.Duration `json:"discovery_timeout"`
-	EnableMDNS         bool          `json:"enable_mdns"`
-	EnableUDPMulticast bool          `json:"enable_udp_multicast"`
-	ServerValidation   bool          `json:"server_validation"`
+	StudentName            string        `json:"student_name"`
+	StudentID              string        `json:"student_id"`
+	ServerDiscoveryTimeout time.Duration `json:"server_discovery_timeout"`
+	HeartbeatInterval      time.Duration `json:"heartbeat_interval"`
+	MulticastAddr          string        `json:"multicast_addr"`
+	MulticastPort          int           `json:"multicast_port"`
+	MDNSServiceType        string        `json:"mdns_service_type"`
+	DiscoveryTimeout       time.Duration `json:"discovery_timeout"`
+	EnableMDNS             bool          `json:"enable_mdns"`
+	EnableUDPMulticast     bool          `json:"enable_udp_multicast"`
+	ServerValidation       bool          `json:"server_validation"`
+	AutoReconnect          bool          `json:"auto_reconnect"`
+	MaxReconnectTries      int           `json:"max_reconnect_tries"`
 }
 
 // ServerInfo información del servidor descubierto
@@ -49,6 +111,15 @@ type ServerInfo struct {
 	Timestamp    int64     `json:"timestamp"`
 	LastSeen     time.Time `json:"last_seen"`
 	Source       string    `json:"source"` // "mdns" o "udp"
+}
+
+type ServerResponse struct {
+	Type         string      `json:"type"`
+	Action       string      `json:"action"`
+	Message      string      `json:"message,omitempty"`
+	ServerInfo   *ServerInfo `json:"server_info,omitempty"`
+	AssignedExam string      `json:"assigned_exam,omitempty"`
+	Timestamp    int64       `json:"timestamp"`
 }
 
 // UDPMessage estructura para mensajes UDP
@@ -582,13 +653,212 @@ func (dm *DiscoveryManager) ConnectToBestServer(timeout time.Duration) (*ServerI
 	return nil, fmt.Errorf("ningún servidor pasó la validación")
 }
 
+func (sc *StudentClient) registerWithServer() error {
+	sc.logger.Printf("Registrándose con servidor: %s", sc.serverInfo.ServerName)
+
+	// Crear conexión UDP al servidor
+	conn, err := net.DialUDP("udp", nil, sc.serverAddr)
+	if err != nil {
+		return fmt.Errorf("error conectando al servidor: %v", err)
+	}
+
+	sc.udpConn = conn
+
+	// Crear mensaje de registro
+	message := &ClientMessage{
+		Type:      "hello",
+		Action:    "join",
+		ClientID:  sc.clientInfo.ClientID,
+		Data:      sc.clientInfo,
+		Timestamp: time.Now().Unix(),
+	}
+
+	// Enviar mensaje
+	if err := sc.sendMessage(message); err != nil {
+		return fmt.Errorf("error enviando mensaje de registro: %v", err)
+	}
+
+	// Esperar respuesta de confirmación
+	if err := sc.waitForWelcomeResponse(); err != nil {
+		return fmt.Errorf("error esperando confirmación: %v", err)
+	}
+
+	sc.connected = true
+	sc.clientInfo.Status = "connected"
+	sc.logger.Printf("Registrado exitosamente con el servidor")
+
+	return nil
+}
+
+// waitForWelcomeResponse espera la respuesta de bienvenida del servidor
+func (sc *StudentClient) waitForWelcomeResponse() error {
+	buffer := make([]byte, 2048)
+
+	// Configurar timeout
+	sc.udpConn.SetReadDeadline(time.Now().Add(10 * time.Second))
+
+	n, err := sc.udpConn.Read(buffer)
+	if err != nil {
+		return fmt.Errorf("error leyendo respuesta: %v", err)
+	}
+
+	var response ServerResponse
+	if err := json.Unmarshal(buffer[:n], &response); err != nil {
+		return fmt.Errorf("error deserializando respuesta: %v", err)
+	}
+
+	if response.Type == "welcome" {
+		sc.logger.Printf("Bienvenida recibida: %s", response.Message)
+		return nil
+	} else if response.Type == "error" {
+		return fmt.Errorf("servidor rechazó registro: %s", response.Message)
+	}
+
+	return fmt.Errorf("respuesta inesperada del servidor: %s", response.Type)
+}
+
+// sendMessage envía un mensaje al servidor
+func (sc *StudentClient) sendMessage(message *ClientMessage) error {
+	data, err := json.Marshal(message)
+	if err != nil {
+		return fmt.Errorf("error serializando mensaje: %v", err)
+	}
+
+	_, err = sc.udpConn.Write(data)
+	if err != nil {
+		return fmt.Errorf("error enviando mensaje: %v", err)
+	}
+
+	return nil
+}
+
+func DefaultStudentConfig() *ClientConfig {
+	return &ClientConfig{
+		StudentName:            "", // Se establecerá después
+		StudentID:              "", // Se establecerá después
+		ServerDiscoveryTimeout: 30 * time.Second,
+		HeartbeatInterval:      10 * time.Second,
+		MulticastAddr:          "224.0.0.100",
+		MulticastPort:          15000,
+		AutoReconnect:          true,
+		MaxReconnectTries:      5,
+	}
+}
+
+// NewStudentClient crea un nuevo cliente estudiante
+func NewStudentClient(config *ClientConfig) (*StudentClient, error) {
+	ctx, cancel := context.WithCancel(context.Background())
+
+	// Generar información del cliente
+	clientInfo, err := generateClientInfo(config)
+	if err != nil {
+		cancel()
+		return nil, fmt.Errorf("error generando información del cliente: %v", err)
+	}
+
+	logger := log.New(os.Stdout, "[STUDENT-CLIENT] ", log.LstdFlags|log.Lshortfile)
+
+	return &StudentClient{
+		config:     config,
+		clientInfo: clientInfo,
+		logger:     logger,
+		ctx:        ctx,
+		cancel:     cancel,
+		maxRetries: config.MaxReconnectTries,
+	}, nil
+}
+
+// generateClientInfo genera la información del cliente automáticamente
+func generateClientInfo(config *ClientConfig) (*ClientInfo, error) {
+	// Obtener nombre del computador
+	hostname, err := os.Hostname()
+	if err != nil {
+		hostname = "Unknown-PC"
+	}
+
+	// Obtener IP local
+	localIP, err := getLocalIP()
+	if err != nil {
+		return nil, fmt.Errorf("error obteniendo IP local: %v", err)
+	}
+
+	// Generar ID único del cliente
+	clientID := fmt.Sprintf("%s-%d", hostname, time.Now().Unix())
+
+	// Obtener especificaciones del computador
+	specs := getComputerSpecs()
+
+	return &ClientInfo{
+		ClientID:      clientID,
+		ComputerName:  hostname,
+		StudentName:   config.StudentName,
+		StudentID:     config.StudentID,
+		IP:            localIP,
+		MAC:           getMACAddress(),
+		LastSeen:      time.Now(),
+		Status:        "connecting",
+		ComputerSpecs: specs,
+	}, nil
+}
+
+// getLocalIP obtiene la IP local
+func getLocalIP() (string, error) {
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		return "", err
+	}
+	defer conn.Close()
+
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+	return localAddr.IP.String(), nil
+}
+
+// getMACAddress obtiene la dirección MAC (simplificado)
+func getMACAddress() string {
+	interfaces, err := net.Interfaces()
+	if err != nil {
+		return ""
+	}
+
+	for _, interf := range interfaces {
+		if interf.Flags&net.FlagUp != 0 && interf.Flags&net.FlagLoopback == 0 {
+			if interf.HardwareAddr != nil {
+				return interf.HardwareAddr.String()
+			}
+		}
+	}
+	return ""
+}
+
+// getComputerSpecs obtiene las especificaciones del computador
+func getComputerSpecs() *ComputerSpecs {
+	return &ComputerSpecs{
+		OS:           runtime.GOOS,
+		Architecture: runtime.GOARCH,
+		Memory:       getMemoryInfo(),
+		Processor:    getProcessorInfo(),
+	}
+}
+
+// getMemoryInfo obtiene información de memoria (simplificado)
+func getMemoryInfo() string {
+	// En implementación real, usar syscalls o librerías específicas del OS
+	return "Info no disponible"
+}
+
+// getProcessorInfo obtiene información del procesador (simplificado)
+func getProcessorInfo() string {
+	// En implementación real, leer desde /proc/cpuinfo en Linux o registry en Windows
+	return fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH)
+}
+
 func main() {
 	fmt.Println("=== Cliente de Descubrimiento de Servidores ===")
 
 	manager := NewDiscoveryManager()
 
-	// Buscar servidores por 45 segundos
-	server, err := manager.ConnectToBestServer(45 * time.Second)
+	// Buscar servidores por 15 segundos
+	server, err := manager.ConnectToBestServer(15 * time.Second)
 	if err != nil {
 		log.Fatalf("Error conectando a servidor: %v", err)
 	}
@@ -599,6 +869,26 @@ func main() {
 	fmt.Printf("  Puerto HTTPS: %d\n", server.HTTPSPort)
 	fmt.Printf("  Versión: %s\n", server.Version)
 	fmt.Printf("  Descubierto vía: %s\n", server.Source)
+
+	// Configuración
+	config := DefaultStudentConfig()
+
+	// Crear cliente
+	client, err := NewStudentClient(config)
+	if err != nil {
+		log.Fatalf("Error creando cliente: %v", err)
+	}
+
+	// Construir dirección UDP del servidor usando IP y puerto UDP (HTTPSPort o el puerto UDP real si lo tienes)
+	serverUDPAddr, err := net.ResolveUDPAddr("udp", server.IP)
+	if err != nil {
+		log.Fatalf("Error resolviendo dirección UDP del servidor: %v", err)
+	}
+	client.serverAddr = serverUDPAddr
+
+	if err := client.registerWithServer(); err != nil {
+		log.Fatalf("Error registrándose con servidor: %v", err)
+	}
 
 	fmt.Println("\nPresiona Enter para salir...")
 	fmt.Scanln()

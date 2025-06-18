@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -17,15 +18,16 @@ import (
 
 // DiscoveryServer maneja tanto mDNS como UDP multicast para descubrimiento
 type DiscoveryServer struct {
-	config     *ServerConfig
-	mdnsServer *zeroconf.Server
-	udpConn    *net.UDPConn
-	running    bool
-	wg         sync.WaitGroup
-	ctx        context.Context
-	cancel     context.CancelFunc
-	logger     *log.Logger
-	serverInfo *ServerInfo
+	config       *ServerConfig
+	mdnsServer   *zeroconf.Server
+	udpConn      *net.UDPConn
+	classroomMgr *ClassroomManager // Nueva línea
+	running      bool
+	wg           sync.WaitGroup
+	ctx          context.Context
+	cancel       context.CancelFunc
+	logger       *log.Logger
+	serverInfo   *ServerInfo
 }
 
 // ServerConfig contiene la configuración del servidor
@@ -44,6 +46,8 @@ type ServerConfig struct {
 // ServerInfo contiene la información que se difunde
 type ServerInfo struct {
 	ServerName   string   `json:"server_name"`
+	Institution  string   `json:"institution"` // Nueva
+	Classroom    string   `json:"classroom"`   // Nueva
 	Version      string   `json:"version"`
 	IP           string   `json:"ip"`
 	HTTPPort     int      `json:"http_port"`
@@ -51,6 +55,8 @@ type ServerInfo struct {
 	Timestamp    int64    `json:"timestamp"`
 	ServerID     string   `json:"server_id"`
 	Capabilities []string `json:"capabilities"`
+	MaxStudents  int      `json:"max_students"` // Nueva
+	ActiveExams  []string `json:"active_exams"` // Nueva
 }
 
 // UDPMessage estructura para mensajes UDP multicast
@@ -103,6 +109,9 @@ func (ds *DiscoveryServer) Start() error {
 	ds.running = true
 	ds.logger.Printf("Iniciando servidor de descubrimiento en IP: %s", ds.serverInfo.IP)
 
+	// Inicializar classroom manager
+	ds.classroomMgr = NewClassroomManager(ds)
+
 	// Iniciar mDNS si está habilitado
 	if ds.config.EnableMDNS {
 		if err := ds.startMDNS(); err != nil {
@@ -120,6 +129,13 @@ func (ds *DiscoveryServer) Start() error {
 			ds.logger.Printf("Servicio UDP multicast iniciado en %s:%d",
 				ds.config.MulticastAddr, ds.config.MulticastPort)
 		}
+	}
+
+	// Iniciar detección de estudiantes
+	if err := ds.classroomMgr.Start(); err != nil {
+		ds.logger.Printf("Error iniciando classroom manager: %v", err)
+	} else {
+		ds.logger.Printf("Sistema de detección de estudiantes iniciado")
 	}
 
 	return nil
@@ -240,6 +256,12 @@ func (ds *DiscoveryServer) Stop() error {
 	// Cancelar contexto para detener goroutines
 	ds.cancel()
 
+	// Detener classroom manager
+	if ds.classroomMgr != nil {
+		ds.classroomMgr.Stop()
+		ds.logger.Printf("Classroom manager detenido")
+	}
+
 	// Detener mDNS
 	if ds.mdnsServer != nil {
 		ds.mdnsServer.Shutdown()
@@ -293,13 +315,13 @@ func generateServerID() string {
 // DefaultConfig retorna una configuración por defecto
 func DefaultConfig() *ServerConfig {
 	return &ServerConfig{
-		ServerName:         "Servidor Evaluaciones",
+		ServerName:         "Servidor Evaluaciones EdalmavaSoft",
 		HTTPPort:           8080,
 		HTTPSPort:          8443,
 		MulticastAddr:      "224.0.0.100",
 		MulticastPort:      15000,
 		MDNSServiceType:    "_evaluacion._tcp",
-		BroadcastInterval:  10 * time.Second,
+		BroadcastInterval:  5 * time.Second,
 		EnableMDNS:         true,
 		EnableUDPMulticast: true,
 	}
@@ -328,6 +350,62 @@ func SaveConfig(config *ServerConfig, filename string) error {
 	}
 
 	return os.WriteFile(filename, data, 0644)
+}
+
+func (ds *DiscoveryServer) GetConnectedStudents() map[string]*ClientInfo {
+	if ds.classroomMgr == nil {
+		return make(map[string]*ClientInfo)
+	}
+	return ds.classroomMgr.GetConnectedClients()
+}
+
+func (ds *DiscoveryServer) GetStudentCount() int {
+	if ds.classroomMgr == nil {
+		return 0
+	}
+	return ds.classroomMgr.GetClientCount()
+}
+
+func (ds *DiscoveryServer) GetStudentsInExam() []*ClientInfo {
+	if ds.classroomMgr == nil {
+		return []*ClientInfo{}
+	}
+	return ds.classroomMgr.GetClientsByStatus("in_exam")
+}
+
+// Función para mostrar dashboard de la sala
+func (ds *DiscoveryServer) ShowClassroomDashboard() {
+	students := ds.GetConnectedStudents()
+	inExam := ds.GetStudentsInExam()
+
+	fmt.Println("\n" + strings.Repeat("=", 60))
+	fmt.Printf("DASHBOARD - %s\n", ds.config.ServerName)
+	fmt.Println(strings.Repeat("=", 60))
+	fmt.Printf("Estudiantes conectados: %d\n", len(students))
+	fmt.Printf("En examen: %d\n", len(inExam))
+	fmt.Printf("Disponibles: %d\n", len(students)-len(inExam))
+
+	if len(students) > 0 {
+		fmt.Println("\nESTUDIANTES CONECTADOS:")
+		fmt.Println(strings.Repeat("-", 60))
+		for _, student := range students {
+			status := "📗" // Disponible
+			if student.Status == "in_exam" {
+				status = "📝" // En examen
+			} else if student.Status == "idle" {
+				status = "💤" // Inactivo
+			}
+
+			studentName := student.StudentName
+			if studentName == "" {
+				studentName = "Sin identificar"
+			}
+
+			fmt.Printf("%s %s (%s) - %s - IP: %s\n",
+				status, student.ComputerName, studentName, student.Status, student.IP)
+		}
+	}
+	fmt.Println(strings.Repeat("=", 60))
 }
 
 func main() {
@@ -374,6 +452,7 @@ func main() {
 				info := server.GetServerInfo()
 				log.Printf("Estado: Nombre=%s, IP=%s, HTTPS=%d, Clientes potenciales escuchando...",
 					info.ServerName, info.IP, info.HTTPSPort)
+				server.ShowClassroomDashboard() // Mostrar dashboard de la sala
 			}
 		}
 	}()
