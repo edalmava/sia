@@ -123,7 +123,7 @@ func (dc *DiscoveryClient) StartDiscovery() error {
 	return nil
 }
 
-// startMDNSDiscovery inicia el descubrimiento vía mDNS
+// startMDNSDiscovery inicia el descubrimiento vía mDNS - VERSIÓN CORREGIDA
 func (dc *DiscoveryClient) startMDNSDiscovery() error {
 	dc.logger.Printf("Iniciando descubrimiento mDNS...")
 
@@ -132,43 +132,65 @@ func (dc *DiscoveryClient) startMDNSDiscovery() error {
 		return fmt.Errorf("error creando resolver mDNS: %v", err)
 	}
 
+	// Usar ticker para búsquedas periódicas
+	ticker := time.NewTicker(10 * time.Second)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-dc.ctx.Done():
+			dc.logger.Printf("Deteniendo descubrimiento mDNS...")
+			return nil
+		case <-ticker.C:
+			// Realizar una búsqueda individual
+			if err := dc.performSingleMDNSSearch(resolver); err != nil {
+				dc.logger.Printf("Error en búsqueda mDNS: %v", err)
+			}
+		}
+	}
+}
+
+// performSingleMDNSSearch realiza una búsqueda mDNS individual
+func (dc *DiscoveryClient) performSingleMDNSSearch(resolver *zeroconf.Resolver) error {
+	// Crear un canal nuevo para cada búsqueda
 	entries := make(chan *zeroconf.ServiceEntry)
 
+	// Crear contexto con timeout para esta búsqueda específica
+	ctx, cancel := context.WithTimeout(dc.ctx, dc.config.DiscoveryTimeout)
+	defer cancel()
+
+	// Procesar entradas en una goroutine separada
+	done := make(chan struct{})
 	go func() {
-		for entry := range entries {
+		defer close(done)
+		for {
 			select {
-			case <-dc.ctx.Done():
-				return
-			default:
+			case entry, ok := <-entries:
+				if !ok {
+					// Canal cerrado por zeroconf, terminar
+					return
+				}
 				dc.processMDNSEntry(entry)
+			case <-ctx.Done():
+				// Timeout o cancelación, terminar
+				return
 			}
 		}
 	}()
 
-	// Búsqueda continua con reintentos
-	for {
-		select {
-		case <-dc.ctx.Done():
-			return nil
-		default:
-			ctx, cancel := context.WithTimeout(dc.ctx, dc.config.DiscoveryTimeout)
+	// Realizar la búsqueda (zeroconf cerrará el canal automáticamente)
+	err := resolver.Browse(ctx, dc.config.MDNSServiceType, "local.", entries)
 
-			err := resolver.Browse(ctx, dc.config.MDNSServiceType, "local.", entries)
-			if err != nil {
-				dc.logger.Printf("Error en browse mDNS: %v", err)
-			}
-
-			cancel()
-
-			// Esperar antes del siguiente intento
-			select {
-			case <-dc.ctx.Done():
-				return nil
-			case <-time.After(5 * time.Second):
-				continue
-			}
-		}
+	// Esperar a que termine el procesamiento o timeout
+	select {
+	case <-done:
+		// Procesamiento completado normalmente
+	case <-time.After(dc.config.DiscoveryTimeout + 5*time.Second):
+		// Timeout adicional por seguridad
+		dc.logger.Printf("Timeout esperando fin de procesamiento mDNS")
 	}
+
+	return err
 }
 
 // processMDNSEntry procesa una entrada mDNS encontrada
@@ -199,6 +221,7 @@ func (dc *DiscoveryClient) processMDNSEntry(entry *zeroconf.ServiceEntry) {
 		HTTPSPort:  entry.Port,
 		LastSeen:   time.Now(),
 		Source:     "mdns",
+		Timestamp:  time.Now().Unix(),
 	}
 
 	// Extraer información adicional de TXT records
@@ -240,6 +263,7 @@ func (dc *DiscoveryClient) startUDPDiscovery() error {
 	for {
 		select {
 		case <-dc.ctx.Done():
+			dc.logger.Printf("Deteniendo descubrimiento UDP...")
 			return nil
 		default:
 			// Configurar timeout de lectura
@@ -306,7 +330,6 @@ func (dc *DiscoveryClient) addOrUpdateServer(serverInfo *ServerInfo) {
 	} else {
 		// Actualizar servidor existente
 		existing.LastSeen = time.Now()
-		existing.Timestamp = serverInfo.Timestamp
 
 		// Actualizar información si es más reciente
 		if serverInfo.Timestamp > existing.Timestamp {
@@ -314,6 +337,7 @@ func (dc *DiscoveryClient) addOrUpdateServer(serverInfo *ServerInfo) {
 			existing.Version = serverInfo.Version
 			existing.Capabilities = serverInfo.Capabilities
 			existing.HTTPPort = serverInfo.HTTPPort
+			existing.Timestamp = serverInfo.Timestamp
 		}
 	}
 }
@@ -326,6 +350,7 @@ func (dc *DiscoveryClient) startServerCleanup() {
 	for {
 		select {
 		case <-dc.ctx.Done():
+			dc.logger.Printf("Deteniendo limpieza de servidores...")
 			return
 		case <-ticker.C:
 			dc.cleanupObsoleteServers()
@@ -427,6 +452,9 @@ func (dc *DiscoveryClient) ValidateServer(server *ServerInfo) error {
 func (dc *DiscoveryClient) Stop() {
 	dc.logger.Printf("Deteniendo cliente de descubrimiento...")
 	dc.cancel()
+
+	// Dar tiempo para que las goroutines terminen limpiamente
+	time.Sleep(2 * time.Second)
 }
 
 // DefaultClientConfig retorna configuración por defecto
@@ -435,8 +463,8 @@ func DefaultClientConfig() *ClientConfig {
 		MulticastAddr:      "224.0.0.100",
 		MulticastPort:      15000,
 		MDNSServiceType:    "_evaluacion._tcp",
-		DiscoveryTimeout:   10 * time.Second,
-		EnableMDNS:         true,
+		DiscoveryTimeout:   15 * time.Second, // Reducido para evitar timeouts largos
+		EnableMDNS:         false,
 		EnableUDPMulticast: true,
 		ServerValidation:   true,
 	}
@@ -559,8 +587,8 @@ func main() {
 
 	manager := NewDiscoveryManager()
 
-	// Buscar servidores por 15 segundos
-	server, err := manager.ConnectToBestServer(15 * time.Second)
+	// Buscar servidores por 45 segundos
+	server, err := manager.ConnectToBestServer(45 * time.Second)
 	if err != nil {
 		log.Fatalf("Error conectando a servidor: %v", err)
 	}
