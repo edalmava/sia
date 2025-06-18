@@ -17,3 +17,8 @@ func HomeHandler(w http.ResponseWriter, r *http.Request) {
 func AboutHandler(w http.ResponseWriter, r *http.Request) {
 	fmt.Fprintf(w, "About us\n")
 }
+
+func HealthHandler(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
+	fmt.Fprintf(w, "OK\n")
+}

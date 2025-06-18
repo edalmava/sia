@@ -15,6 +15,8 @@ func NewRouter() *mux.Router {
 	r.Use(middleware.CorsMiddleware)
 	r.Use(middleware.LoggingMiddleware)
 
+	r.Handle("/health", http.HandlerFunc(handlers.HealthHandler)).Methods(http.MethodGet)
+
 	// API versioning
 	api := r.PathPrefix("/api/v1").Subrouter()
 
