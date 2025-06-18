@@ -32,12 +32,13 @@ type StudentClient struct {
 	config     *ClientConfig
 	clientInfo *ClientInfo
 	serverInfo *ServerInfo
-	udpConn    *net.UDPConn
-	running    bool
-	logger     *log.Logger
-	ctx        context.Context
-	cancel     context.CancelFunc
-	wg         sync.WaitGroup
+
+	udpConn *net.UDPConn
+	running bool
+	logger  *log.Logger
+	ctx     context.Context
+	cancel  context.CancelFunc
+	wg      sync.WaitGroup
 
 	// Estado de conexión
 	connected         bool
@@ -653,7 +654,7 @@ func (dm *DiscoveryManager) ConnectToBestServer(timeout time.Duration) (*ServerI
 	return nil, fmt.Errorf("ningún servidor pasó la validación")
 }
 
-func (sc *StudentClient) registerWithServer() error {
+/* func (sc *StudentClient) registerWithServer() error {
 	sc.logger.Printf("Registrándose con servidor: %s", sc.serverInfo.ServerName)
 
 	// Crear conexión UDP al servidor
@@ -688,6 +689,70 @@ func (sc *StudentClient) registerWithServer() error {
 	sc.logger.Printf("Registrado exitosamente con el servidor")
 
 	return nil
+} */
+// Reemplaza la función registerWithServer() con esta versión corregida:
+func (sc *StudentClient) registerWithServer() error {
+	sc.logger.Printf("Registrándose con servidor: %s", sc.serverInfo.ServerName)
+
+	// Crear conexión UDP local para recibir respuestas
+	localAddr, err := net.ResolveUDPAddr("udp", ":0") // Puerto 0 = puerto automático
+	if err != nil {
+		return fmt.Errorf("error resolviendo dirección local: %v", err)
+	}
+
+	conn, err := net.ListenUDP("udp", localAddr)
+	if err != nil {
+		return fmt.Errorf("error creando conexión UDP: %v", err)
+	}
+	defer conn.Close()
+
+	sc.udpConn = conn
+
+	// Actualizar la información del cliente con el puerto UDP local
+	localUDPAddr := conn.LocalAddr().(*net.UDPAddr)
+	sc.clientInfo.IP = localUDPAddr.IP.String()
+
+	// Crear mensaje de registro
+	message := &ClientMessage{
+		Type:      "hello",
+		Action:    "join",
+		ClientID:  sc.clientInfo.ClientID,
+		Data:      sc.clientInfo,
+		Timestamp: time.Now().Unix(),
+	}
+
+	// Enviar mensaje al servidor
+	if err := sc.sendMessageToServer(message); err != nil {
+		return fmt.Errorf("error enviando mensaje de registro: %v", err)
+	}
+
+	// Esperar respuesta de confirmación
+	if err := sc.waitForWelcomeResponse(); err != nil {
+		return fmt.Errorf("error esperando confirmación: %v", err)
+	}
+
+	sc.connected = true
+	sc.clientInfo.Status = "connected"
+	sc.logger.Printf("Registrado exitosamente con el servidor")
+
+	return nil
+}
+
+// Agrega esta nueva función para enviar mensajes al servidor:
+func (sc *StudentClient) sendMessageToServer(message *ClientMessage) error {
+	data, err := json.Marshal(message)
+	if err != nil {
+		return fmt.Errorf("error serializando mensaje: %v", err)
+	}
+
+	// Enviar al servidor usando WriteTo
+	_, err = sc.udpConn.WriteToUDP(data, sc.serverAddr)
+	if err != nil {
+		return fmt.Errorf("error enviando mensaje: %v", err)
+	}
+
+	sc.logger.Printf("Mensaje enviado al servidor %s", sc.serverAddr.String())
+	return nil
 }
 
 // waitForWelcomeResponse espera la respuesta de bienvenida del servidor
@@ -718,7 +783,7 @@ func (sc *StudentClient) waitForWelcomeResponse() error {
 }
 
 // sendMessage envía un mensaje al servidor
-func (sc *StudentClient) sendMessage(message *ClientMessage) error {
+/* func (sc *StudentClient) sendMessage(message *ClientMessage) error {
 	data, err := json.Marshal(message)
 	if err != nil {
 		return fmt.Errorf("error serializando mensaje: %v", err)
@@ -730,7 +795,7 @@ func (sc *StudentClient) sendMessage(message *ClientMessage) error {
 	}
 
 	return nil
-}
+} */
 
 func DefaultStudentConfig() *ClientConfig {
 	return &ClientConfig{
@@ -880,10 +945,11 @@ func main() {
 	}
 
 	// Construir dirección UDP del servidor usando IP y puerto UDP (HTTPSPort o el puerto UDP real si lo tienes)
-	serverUDPAddr, err := net.ResolveUDPAddr("udp", server.IP)
+	serverUDPAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("%s:%d", server.IP, 15000)) // Asumiendo puerto 15000 para UDP
 	if err != nil {
 		log.Fatalf("Error resolviendo dirección UDP del servidor: %v", err)
 	}
+	client.serverInfo = server
 	client.serverAddr = serverUDPAddr
 
 	if err := client.registerWithServer(); err != nil {
