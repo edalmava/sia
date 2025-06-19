@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bufio"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -8,8 +9,11 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"runtime"
+	"strings"
 	"sync"
+	"syscall"
 	"time"
 
 	"github.com/grandcat/zeroconf"
@@ -48,7 +52,7 @@ type StudentClient struct {
 	maxRetries        int
 }
 
-// ClientInfo información del cliente (reutilizada del servidor)
+// ClientInfo información del cliente
 type ClientInfo struct {
 	ClientID       string         `json:"client_id"`
 	ComputerName   string         `json:"computer_name"`
@@ -74,7 +78,7 @@ type ComputerSpecs struct {
 	ScreenResolution string `json:"screen_resolution,omitempty"`
 }
 
-// Estructuras de mensajes (reutilizadas del servidor)
+// Estructuras de mensajes
 type ClientMessage struct {
 	Type      string      `json:"type"`
 	Action    string      `json:"action"`
@@ -91,6 +95,7 @@ type ClientConfig struct {
 	HeartbeatInterval      time.Duration `json:"heartbeat_interval"`
 	MulticastAddr          string        `json:"multicast_addr"`
 	MulticastPort          int           `json:"multicast_port"`
+	UDPServerPort          int           `json:"udp_server_port"` // Puerto UDP del servidor
 	MDNSServiceType        string        `json:"mdns_service_type"`
 	DiscoveryTimeout       time.Duration `json:"discovery_timeout"`
 	EnableMDNS             bool          `json:"enable_mdns"`
@@ -107,6 +112,7 @@ type ServerInfo struct {
 	IP           string    `json:"ip"`
 	HTTPPort     int       `json:"http_port"`
 	HTTPSPort    int       `json:"https_port"`
+	UDPPort      int       `json:"udp_port"`
 	ServerID     string    `json:"server_id"`
 	Capabilities []string  `json:"capabilities"`
 	Timestamp    int64     `json:"timestamp"`
@@ -306,6 +312,9 @@ func (dc *DiscoveryClient) processMDNSEntry(entry *zeroconf.ServiceEntry) {
 	if httpPort, ok := txtMap["http_port"]; ok {
 		fmt.Sscanf(httpPort, "%d", &serverInfo.HTTPPort)
 	}
+	if udpPort, ok := txtMap["udp_port"]; ok {
+		fmt.Sscanf(udpPort, "%d", &serverInfo.UDPPort)
+	}
 	if capabilities, ok := txtMap["capabilities"]; ok {
 		// Parsear capabilities separadas por comas
 		serverInfo.Capabilities = []string{capabilities} // Simplificado
@@ -409,6 +418,7 @@ func (dc *DiscoveryClient) addOrUpdateServer(serverInfo *ServerInfo) {
 			existing.Version = serverInfo.Version
 			existing.Capabilities = serverInfo.Capabilities
 			existing.HTTPPort = serverInfo.HTTPPort
+			existing.UDPPort = serverInfo.UDPPort
 			existing.Timestamp = serverInfo.Timestamp
 		}
 	}
@@ -534,8 +544,9 @@ func DefaultClientConfig() *ClientConfig {
 	return &ClientConfig{
 		MulticastAddr:      "224.0.0.100",
 		MulticastPort:      15000,
+		UDPServerPort:      15001, // Puerto UDP específico del servidor
 		MDNSServiceType:    "_evaluacion._tcp",
-		DiscoveryTimeout:   15 * time.Second, // Reducido para evitar timeouts largos
+		DiscoveryTimeout:   15 * time.Second,
 		EnableMDNS:         false,
 		EnableUDPMulticast: true,
 		ServerValidation:   true,
@@ -654,148 +665,7 @@ func (dm *DiscoveryManager) ConnectToBestServer(timeout time.Duration) (*ServerI
 	return nil, fmt.Errorf("ningún servidor pasó la validación")
 }
 
-/* func (sc *StudentClient) registerWithServer() error {
-	sc.logger.Printf("Registrándose con servidor: %s", sc.serverInfo.ServerName)
-
-	// Crear conexión UDP al servidor
-	conn, err := net.DialUDP("udp", nil, sc.serverAddr)
-	if err != nil {
-		return fmt.Errorf("error conectando al servidor: %v", err)
-	}
-
-	sc.udpConn = conn
-
-	// Crear mensaje de registro
-	message := &ClientMessage{
-		Type:      "hello",
-		Action:    "join",
-		ClientID:  sc.clientInfo.ClientID,
-		Data:      sc.clientInfo,
-		Timestamp: time.Now().Unix(),
-	}
-
-	// Enviar mensaje
-	if err := sc.sendMessage(message); err != nil {
-		return fmt.Errorf("error enviando mensaje de registro: %v", err)
-	}
-
-	// Esperar respuesta de confirmación
-	if err := sc.waitForWelcomeResponse(); err != nil {
-		return fmt.Errorf("error esperando confirmación: %v", err)
-	}
-
-	sc.connected = true
-	sc.clientInfo.Status = "connected"
-	sc.logger.Printf("Registrado exitosamente con el servidor")
-
-	return nil
-} */
-// Reemplaza la función registerWithServer() con esta versión corregida:
-func (sc *StudentClient) registerWithServer() error {
-	sc.logger.Printf("Registrándose con servidor: %s", sc.serverInfo.ServerName)
-
-	// Crear conexión UDP local para recibir respuestas
-	localAddr, err := net.ResolveUDPAddr("udp", ":0") // Puerto 0 = puerto automático
-	if err != nil {
-		return fmt.Errorf("error resolviendo dirección local: %v", err)
-	}
-
-	conn, err := net.ListenUDP("udp", localAddr)
-	if err != nil {
-		return fmt.Errorf("error creando conexión UDP: %v", err)
-	}
-	defer conn.Close()
-
-	sc.udpConn = conn
-
-	// Actualizar la información del cliente con el puerto UDP local
-	localUDPAddr := conn.LocalAddr().(*net.UDPAddr)
-	sc.clientInfo.IP = localUDPAddr.IP.String()
-
-	// Crear mensaje de registro
-	message := &ClientMessage{
-		Type:      "hello",
-		Action:    "join",
-		ClientID:  sc.clientInfo.ClientID,
-		Data:      sc.clientInfo,
-		Timestamp: time.Now().Unix(),
-	}
-
-	// Enviar mensaje al servidor
-	if err := sc.sendMessageToServer(message); err != nil {
-		return fmt.Errorf("error enviando mensaje de registro: %v", err)
-	}
-
-	// Esperar respuesta de confirmación
-	if err := sc.waitForWelcomeResponse(); err != nil {
-		return fmt.Errorf("error esperando confirmación: %v", err)
-	}
-
-	sc.connected = true
-	sc.clientInfo.Status = "connected"
-	sc.logger.Printf("Registrado exitosamente con el servidor")
-
-	return nil
-}
-
-// Agrega esta nueva función para enviar mensajes al servidor:
-func (sc *StudentClient) sendMessageToServer(message *ClientMessage) error {
-	data, err := json.Marshal(message)
-	if err != nil {
-		return fmt.Errorf("error serializando mensaje: %v", err)
-	}
-
-	// Enviar al servidor usando WriteTo
-	_, err = sc.udpConn.WriteToUDP(data, sc.serverAddr)
-	if err != nil {
-		return fmt.Errorf("error enviando mensaje: %v", err)
-	}
-
-	sc.logger.Printf("Mensaje enviado al servidor %s", sc.serverAddr.String())
-	return nil
-}
-
-// waitForWelcomeResponse espera la respuesta de bienvenida del servidor
-func (sc *StudentClient) waitForWelcomeResponse() error {
-	buffer := make([]byte, 2048)
-
-	// Configurar timeout
-	sc.udpConn.SetReadDeadline(time.Now().Add(10 * time.Second))
-
-	n, err := sc.udpConn.Read(buffer)
-	if err != nil {
-		return fmt.Errorf("error leyendo respuesta: %v", err)
-	}
-
-	var response ServerResponse
-	if err := json.Unmarshal(buffer[:n], &response); err != nil {
-		return fmt.Errorf("error deserializando respuesta: %v", err)
-	}
-
-	if response.Type == "welcome" {
-		sc.logger.Printf("Bienvenida recibida: %s", response.Message)
-		return nil
-	} else if response.Type == "error" {
-		return fmt.Errorf("servidor rechazó registro: %s", response.Message)
-	}
-
-	return fmt.Errorf("respuesta inesperada del servidor: %s", response.Type)
-}
-
-// sendMessage envía un mensaje al servidor
-/* func (sc *StudentClient) sendMessage(message *ClientMessage) error {
-	data, err := json.Marshal(message)
-	if err != nil {
-		return fmt.Errorf("error serializando mensaje: %v", err)
-	}
-
-	_, err = sc.udpConn.Write(data)
-	if err != nil {
-		return fmt.Errorf("error enviando mensaje: %v", err)
-	}
-
-	return nil
-} */
+// STUDENT CLIENT FUNCTIONS
 
 func DefaultStudentConfig() *ClientConfig {
 	return &ClientConfig{
@@ -805,6 +675,7 @@ func DefaultStudentConfig() *ClientConfig {
 		HeartbeatInterval:      10 * time.Second,
 		MulticastAddr:          "224.0.0.100",
 		MulticastPort:          15000,
+		UDPServerPort:          15001,
 		AutoReconnect:          true,
 		MaxReconnectTries:      5,
 	}
@@ -917,45 +788,1493 @@ func getProcessorInfo() string {
 	return fmt.Sprintf("%s/%s", runtime.GOOS, runtime.GOARCH)
 }
 
-func main() {
-	fmt.Println("=== Cliente de Descubrimiento de Servidores ===")
+// Start inicia el cliente estudiante
+func (sc *StudentClient) Start() error {
+	sc.running = true
+	sc.logger.Printf("Iniciando cliente estudiante...")
 
-	manager := NewDiscoveryManager()
+	// Iniciar goroutines
+	sc.wg.Add(1)
+	go sc.heartbeatLoop()
 
-	// Buscar servidores por 15 segundos
-	server, err := manager.ConnectToBestServer(15 * time.Second)
-	if err != nil {
-		log.Fatalf("Error conectando a servidor: %v", err)
+	sc.wg.Add(1)
+	go sc.listenForServerMessages()
+
+	return nil
+}
+
+// Stop detiene el cliente estudiante
+func (sc *StudentClient) Stop() {
+	sc.logger.Printf("Deteniendo cliente estudiante...")
+	sc.running = false
+	sc.connected = false
+
+	// Cancelar contexto
+	sc.cancel()
+
+	// Cerrar conexión UDP si existe
+	if sc.udpConn != nil {
+		sc.udpConn.Close()
 	}
 
-	fmt.Printf("\n✓ Conectado exitosamente:\n")
-	fmt.Printf("  Servidor: %s\n", server.ServerName)
-	fmt.Printf("  IP: %s\n", server.IP)
-	fmt.Printf("  Puerto HTTPS: %d\n", server.HTTPSPort)
-	fmt.Printf("  Versión: %s\n", server.Version)
-	fmt.Printf("  Descubierto vía: %s\n", server.Source)
+	// Esperar que terminen las goroutines
+	sc.wg.Wait()
 
-	// Configuración
+	sc.logger.Printf("Cliente estudiante detenido")
+}
+
+// registerWithServer registra el cliente con el servidor (versión mejorada)
+func (sc *StudentClient) registerWithServer() error {
+	sc.logger.Printf("Registrándose con servidor: %s (%s:%d)",
+		sc.serverInfo.ServerName, sc.serverInfo.IP, sc.serverInfo.UDPPort)
+
+	// Validar que tenemos información del servidor
+	if sc.serverInfo == nil {
+		return fmt.Errorf("información del servidor no disponible")
+	}
+
+	// Cerrar conexión UDP anterior si existe
+	if sc.udpConn != nil {
+		sc.udpConn.Close()
+		sc.udpConn = nil
+	}
+
+	// Crear conexión UDP local para recibir respuestas
+	localAddr, err := net.ResolveUDPAddr("udp", ":0") // Puerto 0 = puerto automático
+	if err != nil {
+		return fmt.Errorf("error resolviendo dirección local: %v", err)
+	}
+
+	conn, err := net.ListenUDP("udp", localAddr)
+	if err != nil {
+		return fmt.Errorf("error creando conexión UDP: %v", err)
+	}
+
+	sc.udpConn = conn
+
+	// Actualizar la información del cliente con datos actuales
+	localIP, err := getLocalIP()
+	if err != nil {
+		sc.logger.Printf("Advertencia: no se pudo obtener IP local: %v", err)
+		// Continuar con la IP existente
+	} else {
+		sc.clientInfo.IP = localIP
+	}
+
+	// Actualizar información adicional
+	sc.clientInfo.LastSeen = time.Now()
+	sc.clientInfo.Status = "registering"
+
+	// Obtener puerto local asignado
+	localPort := conn.LocalAddr().(*net.UDPAddr).Port
+	sc.logger.Printf("Escuchando en puerto local: %d", localPort)
+
+	// Crear mensaje de registro con reintentos
+	message := &ClientMessage{
+		Type:      "hello",
+		Action:    "join",
+		ClientID:  sc.clientInfo.ClientID,
+		Data:      sc.clientInfo,
+		Timestamp: time.Now().Unix(),
+	}
+
+	// Implementar reintentos de registro
+	maxAttempts := 3
+	retryDelay := 2 * time.Second
+
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		sc.logger.Printf("Intento de registro %d/%d", attempt, maxAttempts)
+
+		// Enviar mensaje al servidor
+		if err := sc.sendMessageToServer(message); err != nil {
+			sc.logger.Printf("Error enviando mensaje de registro (intento %d): %v", attempt, err)
+			if attempt == maxAttempts {
+				return fmt.Errorf("error enviando mensaje de registro después de %d intentos: %v", maxAttempts, err)
+			}
+			time.Sleep(retryDelay)
+			continue
+		}
+
+		// Esperar respuesta de confirmación con timeout específico por intento
+		welcomeTimeout := 10 * time.Second
+		if err := sc.waitForWelcomeResponseWithTimeout(welcomeTimeout); err != nil {
+			sc.logger.Printf("Error esperando confirmación (intento %d): %v", attempt, err)
+			if attempt == maxAttempts {
+				return fmt.Errorf("error esperando confirmación del servidor después de %d intentos: %v", maxAttempts, err)
+			}
+			time.Sleep(retryDelay)
+			continue
+		}
+
+		// Si llegamos aquí, el registro fue exitoso
+		sc.logger.Printf("✅ Registro exitoso con el servidor: %s", sc.serverInfo.ServerName)
+		sc.connected = true
+		sc.registrationTries = 0
+		sc.clientInfo.Status = "connected"
+
+		return nil
+	}
+
+	return fmt.Errorf("registro falló después de %d intentos", maxAttempts)
+}
+
+// waitForWelcomeResponseWithTimeout espera la respuesta de bienvenida con timeout configurable
+func (sc *StudentClient) waitForWelcomeResponseWithTimeout(timeout time.Duration) error {
+	sc.logger.Printf("Esperando respuesta de bienvenida del servidor (timeout: %v)...", timeout)
+
+	// Configurar timeout para la respuesta
+	deadline := time.Now().Add(timeout)
+	sc.udpConn.SetReadDeadline(deadline)
+
+	buffer := make([]byte, 2048)
+
+	for time.Now().Before(deadline) {
+		n, addr, err := sc.udpConn.ReadFromUDP(buffer)
+		if err != nil {
+			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+				return fmt.Errorf("timeout esperando respuesta del servidor")
+			}
+			return fmt.Errorf("error leyendo respuesta: %v", err)
+		}
+
+		// Verificar que la respuesta viene del servidor correcto
+		if addr.IP.String() != sc.serverInfo.IP {
+			sc.logger.Printf("Advertencia: respuesta de IP no esperada: %s (esperada: %s)",
+				addr.IP.String(), sc.serverInfo.IP)
+			continue
+		}
+
+		var response ServerResponse
+		if err := json.Unmarshal(buffer[:n], &response); err != nil {
+			sc.logger.Printf("Error parseando respuesta del servidor: %v", err)
+			continue // Continuar esperando respuestas válidas
+		}
+
+		// Procesar respuesta
+		return sc.processWelcomeResponse(&response)
+	}
+
+	return fmt.Errorf("timeout esperando respuesta válida del servidor")
+}
+
+// processWelcomeResponse procesa la respuesta de bienvenida
+func (sc *StudentClient) processWelcomeResponse(response *ServerResponse) error {
+	sc.logger.Printf("Respuesta del servidor: %s/%s", response.Type, response.Action)
+
+	switch response.Type {
+	case "response":
+		switch response.Action {
+		case "welcome":
+			return sc.handleWelcomeResponse(response)
+		case "error":
+			return fmt.Errorf("servidor rechazó registro: %s", response.Message)
+		case "busy":
+			return fmt.Errorf("servidor ocupado: %s", response.Message)
+		default:
+			return fmt.Errorf("acción de respuesta inesperada: %s", response.Action)
+		}
+	case "error":
+		return fmt.Errorf("error del servidor: %s", response.Message)
+	default:
+		return fmt.Errorf("tipo de respuesta inesperada: %s", response.Type)
+	}
+}
+
+// handleWelcomeResponse maneja la respuesta de bienvenida exitosa
+func (sc *StudentClient) handleWelcomeResponse(response *ServerResponse) error {
+	sc.connected = true
+	sc.lastHeartbeat = time.Now()
+	sc.clientInfo.Status = "connected"
+	sc.registrationTries = 0
+
+	sc.logger.Printf("✅ Conectado exitosamente al servidor")
+
+	if response.Message != "" {
+		sc.logger.Printf("📨 Mensaje del servidor: %s", response.Message)
+	}
+
+	// Procesar información adicional del servidor si está disponible
+	if response.ServerInfo != nil {
+		sc.updateServerInfo(response.ServerInfo)
+	}
+
+	// Si el servidor asigna un examen inmediatamente
+	if response.AssignedExam != "" {
+		sc.clientInfo.CurrentExam = response.AssignedExam
+		sc.clientInfo.ExamStartTime = time.Now().Unix()
+		sc.logger.Printf("📋 Examen asignado automáticamente: %s", response.AssignedExam)
+	}
+
+	// Configurar el cliente como completamente conectado
+	sc.clientInfo.LastSeen = time.Now()
+
+	return nil
+}
+
+// updateServerInfo actualiza la información del servidor con datos más recientes
+func (sc *StudentClient) updateServerInfo(newInfo *ServerInfo) {
+	if newInfo == nil {
+		return
+	}
+
+	// Actualizar campos si son más recientes o más completos
+	if newInfo.Timestamp > sc.serverInfo.Timestamp {
+		if newInfo.Version != "" {
+			sc.serverInfo.Version = newInfo.Version
+		}
+		if len(newInfo.Capabilities) > 0 {
+			sc.serverInfo.Capabilities = newInfo.Capabilities
+		}
+		if newInfo.HTTPPort > 0 {
+			sc.serverInfo.HTTPPort = newInfo.HTTPPort
+		}
+		if newInfo.HTTPSPort > 0 {
+			sc.serverInfo.HTTPSPort = newInfo.HTTPSPort
+		}
+		sc.serverInfo.Timestamp = newInfo.Timestamp
+		sc.serverInfo.LastSeen = time.Now()
+
+		sc.logger.Printf("ℹ️ Información del servidor actualizada")
+	}
+}
+
+// validateRegistration valida que el registro fue exitoso
+func (sc *StudentClient) validateRegistration() error {
+	if !sc.connected {
+		return fmt.Errorf("cliente marcado como no conectado")
+	}
+
+	if sc.udpConn == nil {
+		return fmt.Errorf("conexión UDP no establecida")
+	}
+
+	if sc.serverAddr == nil {
+		return fmt.Errorf("dirección del servidor no configurada")
+	}
+
+	if sc.clientInfo.Status != "connected" {
+		return fmt.Errorf("estado del cliente no es 'connected': %s", sc.clientInfo.Status)
+	}
+
+	// Validación adicional: enviar ping de prueba
+	if err := sc.sendTestPing(); err != nil {
+		return fmt.Errorf("ping de prueba falló: %v", err)
+	}
+
+	return nil
+}
+
+// sendTestPing envía un ping de prueba al servidor para validar la conexión
+func (sc *StudentClient) sendTestPing() error {
+	testMessage := &ClientMessage{
+		Type:      "test",
+		Action:    "ping",
+		ClientID:  sc.clientInfo.ClientID,
+		Data:      nil, // Sin datos para ping de prueba
+		Timestamp: time.Now().Unix(),
+	}
+
+	return sc.sendMessageToServer(testMessage)
+}
+
+// Continuación de las funciones faltantes del StudentClient
+
+// waitForWelcomeResponse espera la respuesta de bienvenida del servidor
+func (sc *StudentClient) waitForWelcomeResponse() error {
+	sc.logger.Printf("Esperando respuesta de bienvenida del servidor...")
+
+	// Configurar timeout para la respuesta
+	sc.udpConn.SetReadDeadline(time.Now().Add(10 * time.Second))
+
+	buffer := make([]byte, 2048)
+	n, _, err := sc.udpConn.ReadFromUDP(buffer)
+	if err != nil {
+		if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+			return fmt.Errorf("timeout esperando respuesta del servidor")
+		}
+		return fmt.Errorf("error leyendo respuesta: %v", err)
+	}
+
+	var response ServerResponse
+	if err := json.Unmarshal(buffer[:n], &response); err != nil {
+		return fmt.Errorf("error parseando respuesta del servidor: %v", err)
+	}
+
+	if response.Type == "response" && response.Action == "welcome" {
+		sc.connected = true
+		sc.lastHeartbeat = time.Now()
+		sc.clientInfo.Status = "connected"
+		sc.registrationTries = 0
+
+		sc.logger.Printf("✓ Conectado exitosamente al servidor: %s", response.Message)
+
+		// Si el servidor asigna un examen
+		if response.AssignedExam != "" {
+			sc.clientInfo.CurrentExam = response.AssignedExam
+			sc.clientInfo.ExamStartTime = time.Now().Unix()
+			sc.logger.Printf("Examen asignado: %s", response.AssignedExam)
+		}
+
+		return nil
+	}
+
+	return fmt.Errorf("respuesta inesperada del servidor: %s", response.Message)
+}
+
+// sendMessageToServer envía un mensaje al servidor vía UDP
+func (sc *StudentClient) sendMessageToServer(message *ClientMessage) error {
+	if sc.serverAddr == nil {
+		return fmt.Errorf("dirección del servidor no establecida")
+	}
+
+	data, err := json.Marshal(message)
+	if err != nil {
+		return fmt.Errorf("error serializando mensaje: %v", err)
+	}
+
+	// Crear conexión temporal para envío
+	conn, err := net.DialUDP("udp", nil, sc.serverAddr)
+	if err != nil {
+		return fmt.Errorf("error conectando al servidor: %v", err)
+	}
+	defer conn.Close()
+
+	_, err = conn.Write(data)
+	if err != nil {
+		return fmt.Errorf("error enviando datos: %v", err)
+	}
+
+	return nil
+}
+
+// heartbeatLoop mantiene la conexión viva con heartbeats periódicos
+func (sc *StudentClient) heartbeatLoop() {
+	defer sc.wg.Done()
+
+	ticker := time.NewTicker(sc.config.HeartbeatInterval)
+	defer ticker.Stop()
+
+	sc.logger.Printf("Iniciando loop de heartbeat cada %v", sc.config.HeartbeatInterval)
+
+	for {
+		select {
+		case <-sc.ctx.Done():
+			sc.logger.Printf("Deteniendo loop de heartbeat")
+			return
+		case <-ticker.C:
+			if sc.connected {
+				if err := sc.sendHeartbeat(); err != nil {
+					sc.logger.Printf("Error enviando heartbeat: %v", err)
+					sc.handleConnectionLost()
+				}
+			} else if sc.config.AutoReconnect && sc.registrationTries < sc.maxRetries {
+				sc.logger.Printf("Intentando reconectar... (intento %d/%d)",
+					sc.registrationTries+1, sc.maxRetries)
+				if err := sc.attemptReconnection(); err != nil {
+					sc.logger.Printf("Fallo en reconexión: %v", err)
+				}
+			}
+		}
+	}
+}
+
+// sendHeartbeat envía un heartbeat al servidor
+func (sc *StudentClient) sendHeartbeat() error {
+	// Actualizar información del cliente
+	sc.clientInfo.LastSeen = time.Now()
+	sc.clientInfo.Status = "connected"
+
+	// Calcular latencia de red (simplificado)
+	start := time.Now()
+	sc.clientInfo.NetworkLatency = int(time.Since(start).Milliseconds())
+
+	message := &ClientMessage{
+		Type:      "heartbeat",
+		Action:    "ping",
+		ClientID:  sc.clientInfo.ClientID,
+		Data:      sc.clientInfo,
+		Timestamp: time.Now().Unix(),
+	}
+
+	if err := sc.sendMessageToServer(message); err != nil {
+		return err
+	}
+
+	sc.lastHeartbeat = time.Now()
+	return nil
+}
+
+// handleConnectionLost maneja la pérdida de conexión
+func (sc *StudentClient) handleConnectionLost() {
+	sc.logger.Printf("⚠️ Conexión con servidor perdida")
+	sc.connected = false
+	sc.clientInfo.Status = "disconnected"
+
+	if sc.config.AutoReconnect && sc.registrationTries < sc.maxRetries {
+		sc.logger.Printf("Configurado para auto-reconexión...")
+	} else {
+		sc.logger.Printf("Auto-reconexión deshabilitada o máximo de intentos alcanzado")
+	}
+}
+
+// attemptReconnection intenta reconectar al servidor
+func (sc *StudentClient) attemptReconnection() error {
+	sc.registrationTries++
+
+	// Intentar re-descubrir el servidor
+	if err := sc.rediscoverServer(); err != nil {
+		return fmt.Errorf("error re-descubriendo servidor: %v", err)
+	}
+
+	// Intentar registrarse nuevamente
+	if err := sc.registerWithServer(); err != nil {
+		return fmt.Errorf("error re-registrando con servidor: %v", err)
+	}
+
+	return nil
+}
+
+// rediscoverServer re-descubre el servidor
+func (sc *StudentClient) rediscoverServer() error {
+	dm := NewDiscoveryManager()
+
+	server, err := dm.ConnectToBestServer(sc.config.ServerDiscoveryTimeout)
+	if err != nil {
+		return err
+	}
+
+	sc.serverInfo = server
+
+	// Actualizar dirección del servidor
+	sc.serverAddr, err = net.ResolveUDPAddr("udp",
+		fmt.Sprintf("%s:%d", server.IP, server.UDPPort))
+	if err != nil {
+		return fmt.Errorf("error resolviendo dirección del servidor: %v", err)
+	}
+
+	return nil
+}
+
+// listenForServerMessages escucha mensajes del servidor
+func (sc *StudentClient) listenForServerMessages() {
+	defer sc.wg.Done()
+
+	sc.logger.Printf("Iniciando listener de mensajes del servidor")
+
+	buffer := make([]byte, 4096)
+
+	for sc.running {
+		select {
+		case <-sc.ctx.Done():
+			sc.logger.Printf("Deteniendo listener de mensajes")
+			return
+		default:
+			if sc.udpConn == nil {
+				time.Sleep(1 * time.Second)
+				continue
+			}
+
+			// Configurar timeout de lectura
+			sc.udpConn.SetReadDeadline(time.Now().Add(2 * time.Second))
+
+			n, _, err := sc.udpConn.ReadFromUDP(buffer)
+			if err != nil {
+				if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+					continue // Timeout normal
+				}
+				if sc.running {
+					sc.logger.Printf("Error leyendo mensaje del servidor: %v", err)
+				}
+				continue
+			}
+
+			sc.processServerMessage(buffer[:n])
+		}
+	}
+}
+
+// processServerMessage procesa un mensaje recibido del servidor
+func (sc *StudentClient) processServerMessage(data []byte) {
+	var response ServerResponse
+	if err := json.Unmarshal(data, &response); err != nil {
+		sc.logger.Printf("Error parseando mensaje del servidor: %v", err)
+		return
+	}
+
+	sc.logger.Printf("📨 Mensaje del servidor: %s/%s - %s",
+		response.Type, response.Action, response.Message)
+
+	switch response.Type {
+	case "response":
+		sc.handleServerResponse(&response)
+	case "command":
+		sc.handleServerCommand(&response)
+	case "notification":
+		sc.handleServerNotification(&response)
+	default:
+		sc.logger.Printf("Tipo de mensaje desconocido: %s", response.Type)
+	}
+}
+
+// handleServerResponse maneja respuestas del servidor
+func (sc *StudentClient) handleServerResponse(response *ServerResponse) {
+	switch response.Action {
+	case "pong":
+		// Respuesta a heartbeat
+		sc.lastHeartbeat = time.Now()
+	case "exam_assigned":
+		if response.AssignedExam != "" {
+			sc.clientInfo.CurrentExam = response.AssignedExam
+			sc.clientInfo.ExamStartTime = time.Now().Unix()
+			sc.logger.Printf("📋 Nuevo examen asignado: %s", response.AssignedExam)
+		}
+	case "status_update":
+		sc.logger.Printf("📊 Actualización de estado: %s", response.Message)
+	}
+}
+
+// handleServerCommand maneja comandos del servidor
+func (sc *StudentClient) handleServerCommand(response *ServerResponse) {
+	switch response.Action {
+	case "shutdown":
+		sc.logger.Printf("🔴 Comando de apagado recibido del servidor")
+		sc.Stop()
+	case "restart_exam":
+		sc.logger.Printf("🔄 Comando de reinicio de examen")
+		sc.clientInfo.ExamStartTime = time.Now().Unix()
+	case "lock_screen":
+		sc.logger.Printf("🔒 Comando de bloqueo de pantalla")
+		// Implementar bloqueo de pantalla si es necesario
+	case "update_info":
+		sc.logger.Printf("ℹ️ Solicitud de actualización de información")
+		sc.sendInfoUpdate()
+	}
+}
+
+// handleServerNotification maneja notificaciones del servidor
+func (sc *StudentClient) handleServerNotification(response *ServerResponse) {
+	switch response.Action {
+	case "exam_time_warning":
+		sc.logger.Printf("⏰ Advertencia de tiempo de examen: %s", response.Message)
+	case "system_message":
+		sc.logger.Printf("📢 Mensaje del sistema: %s", response.Message)
+	case "maintenance":
+		sc.logger.Printf("🔧 Notificación de mantenimiento: %s", response.Message)
+	}
+}
+
+// sendInfoUpdate envía actualización de información al servidor
+func (sc *StudentClient) sendInfoUpdate() {
+	sc.clientInfo.LastSeen = time.Now()
+
+	message := &ClientMessage{
+		Type:      "update",
+		Action:    "client_info",
+		ClientID:  sc.clientInfo.ClientID,
+		Data:      sc.clientInfo,
+		Timestamp: time.Now().Unix(),
+	}
+
+	if err := sc.sendMessageToServer(message); err != nil {
+		sc.logger.Printf("Error enviando actualización de info: %v", err)
+	}
+}
+
+// ConnectToServer conecta el cliente a un servidor específico
+func (sc *StudentClient) ConnectToServer(server *ServerInfo) error {
+	sc.logger.Printf("Conectando a servidor: %s (%s:%d)",
+		server.ServerName, server.IP, server.UDPPort)
+
+	sc.serverInfo = server
+
+	// Resolver dirección UDP del servidor
+	var err error
+	sc.serverAddr, err = net.ResolveUDPAddr("udp",
+		fmt.Sprintf("%s:%d", server.IP, server.UDPPort))
+	if err != nil {
+		return fmt.Errorf("error resolviendo dirección del servidor: %v", err)
+	}
+
+	// Intentar registro
+	if err := sc.registerWithServer(); err != nil {
+		return fmt.Errorf("error registrando con servidor: %v", err)
+	}
+
+	return nil
+}
+
+// GetClientInfo returna la información del cliente
+func (sc *StudentClient) GetClientInfo() *ClientInfo {
+	return sc.clientInfo
+}
+
+// GetServerInfo returna la información del servidor conectado
+func (sc *StudentClient) GetServerInfo() *ServerInfo {
+	return sc.serverInfo
+}
+
+// IsConnected returna si el cliente está conectado
+func (sc *StudentClient) IsConnected() bool {
+	return sc.connected
+}
+
+// GetStatus returna el estado actual del cliente
+func (sc *StudentClient) GetStatus() string {
+	if !sc.running {
+		return "stopped"
+	}
+	if sc.connected {
+		return "connected"
+	}
+	return "connecting"
+}
+
+// SetStudentInfo actualiza la información del estudiante
+func (sc *StudentClient) SetStudentInfo(name, id string) {
+	sc.clientInfo.StudentName = name
+	sc.clientInfo.StudentID = id
+	sc.config.StudentName = name
+	sc.config.StudentID = id
+}
+
+// SendExamResult envía resultado de examen al servidor
+func (sc *StudentClient) SendExamResult(examID string, results map[string]interface{}) error {
+	if !sc.connected {
+		return fmt.Errorf("cliente no conectado al servidor")
+	}
+
+	// Crear estructura de datos para el resultado
+	resultData := map[string]interface{}{
+		"exam_id":     examID,
+		"client_id":   sc.clientInfo.ClientID,
+		"student_id":  sc.clientInfo.StudentID,
+		"results":     results,
+		"finish_time": time.Now().Unix(),
+		"duration":    time.Now().Unix() - sc.clientInfo.ExamStartTime,
+	}
+
+	// Serializar resultData como JSON y ponerlo en ClientInfo
+	_, err := json.Marshal(resultData)
+	if err != nil {
+		return fmt.Errorf("error serializando resultados: %v", err)
+	}
+
+	// Crear una copia de clientInfo con los resultados
+	clientInfoCopy := *sc.clientInfo
+	clientInfoCopy.Status = "exam_completed"
+
+	message := &ClientMessage{
+		Type:      "exam",
+		Action:    "submit_results",
+		ClientID:  sc.clientInfo.ClientID,
+		Data:      &clientInfoCopy,
+		Timestamp: time.Now().Unix(),
+	}
+
+	// Agregar los resultados como datos adicionales
+	// (En una implementación real, podrías extender ClientMessage para incluir más campos)
+
+	if err := sc.sendMessageToServer(message); err != nil {
+		return fmt.Errorf("error enviando resultados: %v", err)
+	}
+
+	sc.logger.Printf("📤 Resultados de examen enviados: %s", examID)
+	return nil
+}
+
+// FUNCIONES DE UTILIDAD PRINCIPALES
+
+// RunStudentClient función principal para ejecutar un cliente estudiante
+// RunStudentClient función principal mejorada para ejecutar un cliente estudiante
+func RunStudentClient(studentName, studentID string) error {
+	fmt.Printf("🚀 Iniciando cliente estudiante...\n")
+	fmt.Printf("👤 Estudiante: %s (ID: %s)\n", studentName, studentID)
+
+	// Validar parámetros de entrada
+	if studentName == "" || studentID == "" {
+		return fmt.Errorf("nombre del estudiante e ID son requeridos")
+	}
+
+	// Crear configuración
 	config := DefaultStudentConfig()
+	config.StudentName = studentName
+	config.StudentID = studentID
 
 	// Crear cliente
+	fmt.Printf("⚙️ Creando cliente estudiante...\n")
+	client, err := NewStudentClient(config)
+	if err != nil {
+		return fmt.Errorf("error creando cliente: %v", err)
+	}
+
+	// Configurar manejo de señales para terminación limpia
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	// Canal para errores críticos
+	errChan := make(chan error, 1)
+
+	// Goroutine para descubrimiento y conexión
+	go func() {
+		if err := connectToServer(client); err != nil {
+			errChan <- fmt.Errorf("error conectando: %v", err)
+			return
+		}
+
+		// Iniciar cliente
+		if err := client.Start(); err != nil {
+			errChan <- fmt.Errorf("error iniciando cliente: %v", err)
+			return
+		}
+
+		fmt.Printf("✅ Cliente iniciado exitosamente\n")
+		printClientStatus(client)
+	}()
+
+	// Loop principal
+	ticker := time.NewTicker(30 * time.Second)
+	defer ticker.Stop()
+
+	fmt.Printf("🏃 Cliente ejecutándose... (Ctrl+C para terminar)\n")
+
+	for {
+		select {
+		case <-sigChan:
+			fmt.Printf("\n🛑 Señal de terminación recibida. Cerrando cliente...\n")
+			return shutdownClient(client)
+
+		case err := <-errChan:
+			fmt.Printf("❌ Error crítico: %v\n", err)
+			return shutdownClient(client)
+
+		case <-ticker.C:
+			// Verificar estado del cliente periódicamente
+			if !client.IsConnected() {
+				fmt.Printf("⚠️ Cliente desconectado. Estado: %s\n", client.GetStatus())
+
+				// Si auto-reconexión está deshabilitada o falló, terminar
+				if !config.AutoReconnect {
+					return fmt.Errorf("cliente desconectado y auto-reconexión deshabilitada")
+				}
+			} else {
+				// Mostrar estado de salud cada 30 segundos
+				printHealthStatus(client)
+			}
+		}
+	}
+}
+
+// connectToServer maneja el descubrimiento y conexión al servidor
+func connectToServer(client *StudentClient) error {
+	fmt.Printf("🔍 Buscando servidores disponibles...\n")
+
+	// Descubrir servidor
+	dm := NewDiscoveryManager()
+
+	// Intentar encontrar servidor con timeout
+	server, err := dm.ConnectToBestServer(30 * time.Second)
+	if err != nil {
+		return fmt.Errorf("no se pudo encontrar servidor: %v", err)
+	}
+
+	fmt.Printf("📡 Servidor encontrado:\n")
+	fmt.Printf("   • Nombre: %s\n", server.ServerName)
+	fmt.Printf("   • IP: %s:%d\n", server.IP, server.HTTPSPort)
+	fmt.Printf("   • Versión: %s\n", server.Version)
+	fmt.Printf("   • Fuente: %s\n", server.Source)
+
+	// Validar servidor antes de conectar
+	fmt.Printf("🔍 Validando servidor...\n")
+	if err := dm.client.ValidateServer(server); err != nil {
+		return fmt.Errorf("servidor no pasó validación: %v", err)
+	}
+
+	// Conectar al servidor
+	fmt.Printf("🔗 Conectando al servidor...\n")
+	if err := client.ConnectToServer(server); err != nil {
+		return fmt.Errorf("fallo al conectar con servidor: %v", err)
+	}
+
+	// Verificar que la conexión fue exitosa
+	maxWait := 10 * time.Second
+	checkInterval := 500 * time.Millisecond
+	waited := time.Duration(0)
+
+	for waited < maxWait {
+		if client.IsConnected() {
+			fmt.Printf("✅ Conexión establecida exitosamente\n")
+			return nil
+		}
+		time.Sleep(checkInterval)
+		waited += checkInterval
+	}
+
+	return fmt.Errorf("timeout esperando confirmación de conexión")
+}
+
+// printClientStatus imprime el estado detallado del cliente
+func printClientStatus(client *StudentClient) {
+	clientInfo := client.GetClientInfo()
+	serverInfo := client.GetServerInfo()
+
+	fmt.Printf("\n📊 Estado del Cliente:\n")
+	fmt.Printf("   • ID Cliente: %s\n", clientInfo.ClientID)
+	fmt.Printf("   • Computador: %s\n", clientInfo.ComputerName)
+	fmt.Printf("   • IP Local: %s\n", clientInfo.IP)
+	fmt.Printf("   • Estado: %s\n", clientInfo.Status)
+
+	if clientInfo.MAC != "" {
+		fmt.Printf("   • MAC: %s\n", clientInfo.MAC)
+	}
+
+	if clientInfo.CurrentExam != "" {
+		fmt.Printf("   • Examen Actual: %s\n", clientInfo.CurrentExam)
+		if clientInfo.ExamStartTime > 0 {
+			startTime := time.Unix(clientInfo.ExamStartTime, 0)
+			duration := time.Since(startTime)
+			fmt.Printf("   • Tiempo de Examen: %v\n", duration.Round(time.Second))
+		}
+	}
+
+	if serverInfo != nil {
+		fmt.Printf("\n🖥️ Servidor Conectado:\n")
+		fmt.Printf("   • Nombre: %s\n", serverInfo.ServerName)
+		fmt.Printf("   • Dirección: %s:%d\n", serverInfo.IP, serverInfo.HTTPSPort)
+		fmt.Printf("   • UDP: %d\n", serverInfo.UDPPort)
+		if serverInfo.Version != "" {
+			fmt.Printf("   • Versión: %s\n", serverInfo.Version)
+		}
+	}
+
+	if clientInfo.ComputerSpecs != nil {
+		fmt.Printf("\n💻 Especificaciones:\n")
+		fmt.Printf("   • SO: %s\n", clientInfo.ComputerSpecs.OS)
+		fmt.Printf("   • Arquitectura: %s\n", clientInfo.ComputerSpecs.Architecture)
+		if clientInfo.ComputerSpecs.Memory != "" {
+			fmt.Printf("   • Memoria: %s\n", clientInfo.ComputerSpecs.Memory)
+		}
+		if clientInfo.ComputerSpecs.Processor != "" {
+			fmt.Printf("   • Procesador: %s\n", clientInfo.ComputerSpecs.Processor)
+		}
+	}
+
+	fmt.Printf("\n")
+}
+
+// printHealthStatus imprime estado de salud resumido
+func printHealthStatus(client *StudentClient) {
+	status := client.GetStatus()
+	clientInfo := client.GetClientInfo()
+
+	fmt.Printf("💚 Estado: %s", status)
+
+	if client.IsConnected() {
+		fmt.Printf(" | Latencia: %dms", clientInfo.NetworkLatency)
+
+		if clientInfo.CurrentExam != "" {
+			duration := time.Since(time.Unix(clientInfo.ExamStartTime, 0))
+			fmt.Printf(" | Examen: %s (%v)", clientInfo.CurrentExam, duration.Round(time.Minute))
+		}
+	}
+
+	fmt.Printf("\n")
+}
+
+// shutdownClient termina el cliente limpiamente
+func shutdownClient(client *StudentClient) error {
+	fmt.Printf("🔄 Cerrando conexiones...\n")
+
+	// Detener cliente
+	client.Stop()
+
+	fmt.Printf("✅ Cliente terminado exitosamente\n")
+	return nil
+}
+
+// RunStudentClientWithRetry ejecuta el cliente con reintentos automáticos
+func RunStudentClientWithRetry(studentName, studentID string, maxRetries int) error {
+	var lastErr error
+
+	for attempt := 1; attempt <= maxRetries; attempt++ {
+		fmt.Printf("🔄 Intento %d/%d de ejecución del cliente\n", attempt, maxRetries)
+
+		err := RunStudentClient(studentName, studentID)
+		if err == nil {
+			return nil // Éxito
+		}
+
+		lastErr = err
+		fmt.Printf("❌ Intento %d falló: %v\n", attempt, err)
+
+		if attempt < maxRetries {
+			waitTime := time.Duration(attempt*5) * time.Second
+			fmt.Printf("⏳ Esperando %v antes del siguiente intento...\n", waitTime)
+			time.Sleep(waitTime)
+		}
+	}
+
+	return fmt.Errorf("cliente falló después de %d intentos. Último error: %v", maxRetries, lastErr)
+}
+
+// RunStudentClientInteractive ejecuta el cliente en modo interactivo
+func RunStudentClientInteractive() error {
+	fmt.Printf("🎓 Cliente Estudiante - Modo Interactivo\n")
+	fmt.Printf("=====================================\n\n")
+
+	// Solicitar información del estudiante
+	var studentName, studentID string
+
+	fmt.Printf("Ingrese el nombre del estudiante: ")
+	if _, err := fmt.Scanln(&studentName); err != nil {
+		return fmt.Errorf("error leyendo nombre: %v", err)
+	}
+
+	fmt.Printf("Ingrese el ID del estudiante: ")
+	if _, err := fmt.Scanln(&studentID); err != nil {
+		return fmt.Errorf("error leyendo ID: %v", err)
+	}
+
+	// Ejecutar cliente
+	return RunStudentClient(studentName, studentID)
+}
+
+// TestConnection prueba la conexión sin ejecutar el cliente completo
+func TestConnection(timeout time.Duration) error {
+	fmt.Printf("🧪 Probando conexión con servidores...\n")
+
+	dm := NewDiscoveryManager()
+	servers, err := dm.DiscoverServers(timeout)
+	if err != nil {
+		return fmt.Errorf("error en descubrimiento: %v", err)
+	}
+
+	if len(servers) == 0 {
+		return fmt.Errorf("no se encontraron servidores")
+	}
+
+	fmt.Printf("✅ Encontrados %d servidor(es)\n", len(servers))
+
+	for i, server := range servers {
+		fmt.Printf("\n📡 Probando servidor #%d: %s\n", i+1, server.ServerName)
+
+		if err := dm.client.ValidateServer(server); err != nil {
+			fmt.Printf("❌ Validación falló: %v\n", err)
+			continue
+		}
+
+		fmt.Printf("✅ Servidor validado exitosamente\n")
+		fmt.Printf("   • IP: %s:%d\n", server.IP, server.HTTPSPort)
+		fmt.Printf("   • UDP: %d\n", server.UDPPort)
+		fmt.Printf("   • Versión: %s\n", server.Version)
+	}
+
+	return nil
+}
+
+// DiscoverAndListServers descubre y lista servidores disponibles
+func DiscoverAndListServers(timeout time.Duration) error {
+	fmt.Printf("🔍 Buscando servidores por %v...\n", timeout)
+
+	dm := NewDiscoveryManager()
+	servers, err := dm.DiscoverServers(timeout)
+	if err != nil {
+		return fmt.Errorf("error en descubrimiento: %v", err)
+	}
+
+	if len(servers) == 0 {
+		fmt.Printf("❌ No se encontraron servidores\n")
+		return nil
+	}
+
+	fmt.Printf("✅ Encontrados %d servidor(es):\n\n", len(servers))
+
+	for i, server := range servers {
+		fmt.Printf("📡 Servidor #%d:\n", i+1)
+		fmt.Printf("   Nombre: %s\n", server.ServerName)
+		fmt.Printf("   IP: %s\n", server.IP)
+		fmt.Printf("   Puerto HTTP: %d\n", server.HTTPPort)
+		fmt.Printf("   Puerto HTTPS: %d\n", server.HTTPSPort)
+		fmt.Printf("   Puerto UDP: %d\n", server.UDPPort)
+		fmt.Printf("   Versión: %s\n", server.Version)
+		fmt.Printf("   ID: %s\n", server.ServerID)
+		fmt.Printf("   Fuente: %s\n", server.Source)
+		fmt.Printf("   Visto por última vez: %s\n", server.LastSeen.Format("15:04:05"))
+		if len(server.Capabilities) > 0 {
+			fmt.Printf("   Capacidades: %v\n", server.Capabilities)
+		}
+		fmt.Printf("\n")
+	}
+
+	return nil
+}
+
+// EJEMPLO 1: USO BÁSICO - Cliente Simple
+func ejemploBasico() {
+	fmt.Println("=== EJEMPLO 1: USO BÁSICO ===")
+
+	// Ejecutar cliente con datos del estudiante
+	err := RunStudentClient("Juan Pérez", "20241234")
+	if err != nil {
+		log.Fatalf("Error ejecutando cliente: %v", err)
+	}
+}
+
+// EJEMPLO 2: DESCUBRIMIENTO DE SERVIDORES
+func ejemploDescubrimiento() {
+	fmt.Println("=== EJEMPLO 2: DESCUBRIMIENTO DE SERVIDORES ===")
+
+	// Buscar servidores disponibles por 15 segundos
+	err := DiscoverAndListServers(15 * time.Second)
+	if err != nil {
+		log.Fatalf("Error en descubrimiento: %v", err)
+	}
+}
+
+// EJEMPLO 3: CLIENTE CON CONFIGURACIÓN PERSONALIZADA
+func ejemploPersonalizado() {
+	fmt.Println("=== EJEMPLO 3: CONFIGURACIÓN PERSONALIZADA ===")
+
+	// Crear configuración personalizada
+	config := &ClientConfig{
+		StudentName:            "María García",
+		StudentID:              "20241235",
+		ServerDiscoveryTimeout: 20 * time.Second,
+		HeartbeatInterval:      5 * time.Second, // Heartbeat más frecuente
+		MulticastAddr:          "224.0.0.100",
+		MulticastPort:          15000,
+		UDPServerPort:          15001,
+		AutoReconnect:          true,
+		MaxReconnectTries:      10,   // Más intentos de reconexión
+		EnableMDNS:             true, // Habilitar mDNS
+		EnableUDPMulticast:     true,
+		ServerValidation:       true,
+	}
+
+	// Crear cliente con configuración personalizada
 	client, err := NewStudentClient(config)
 	if err != nil {
 		log.Fatalf("Error creando cliente: %v", err)
 	}
 
-	// Construir dirección UDP del servidor usando IP y puerto UDP (HTTPSPort o el puerto UDP real si lo tienes)
-	serverUDPAddr, err := net.ResolveUDPAddr("udp", fmt.Sprintf("%s:%d", server.IP, 15000)) // Asumiendo puerto 15000 para UDP
+	// Descubrir servidor
+	dm := NewDiscoveryManager()
+	server, err := dm.ConnectToBestServer(config.ServerDiscoveryTimeout)
 	if err != nil {
-		log.Fatalf("Error resolviendo dirección UDP del servidor: %v", err)
-	}
-	client.serverInfo = server
-	client.serverAddr = serverUDPAddr
-
-	if err := client.registerWithServer(); err != nil {
-		log.Fatalf("Error registrándose con servidor: %v", err)
+		log.Fatalf("Error encontrando servidor: %v", err)
 	}
 
-	fmt.Println("\nPresiona Enter para salir...")
-	fmt.Scanln()
+	fmt.Printf("Servidor encontrado: %s\n", server.ServerName)
+
+	// Conectar y iniciar
+	if err := client.ConnectToServer(server); err != nil {
+		log.Fatalf("Error conectando: %v", err)
+	}
+
+	if err := client.Start(); err != nil {
+		log.Fatalf("Error iniciando cliente: %v", err)
+	}
+
+	// Mostrar información del cliente
+	info := client.GetClientInfo()
+	fmt.Printf("Cliente iniciado:\n")
+	fmt.Printf("  ID: %s\n", info.ClientID)
+	fmt.Printf("  Nombre: %s\n", info.StudentName)
+	fmt.Printf("  Computador: %s\n", info.ComputerName)
+	fmt.Printf("  IP: %s\n", info.IP)
+	fmt.Printf("  Estado: %s\n", client.GetStatus())
+
+	// Mantener ejecutándose
+	waitForSignal()
+	client.Stop()
+}
+
+// EJEMPLO 4: CLIENTE INTERACTIVO CON MENÚ
+func ejemploInteractivo() {
+	fmt.Println("=== EJEMPLO 4: CLIENTE INTERACTIVO ===")
+
+	var client *StudentClient
+	var server *ServerInfo
+	reader := bufio.NewReader(os.Stdin)
+
+	for {
+		fmt.Println("\n=== MENÚ CLIENTE ESTUDIANTE ===")
+		fmt.Println("1. Configurar estudiante")
+		fmt.Println("2. Buscar servidores")
+		fmt.Println("3. Conectar a servidor")
+		fmt.Println("4. Ver estado")
+		fmt.Println("5. Enviar resultado de examen")
+		fmt.Println("6. Desconectar")
+		fmt.Println("7. Salir")
+		fmt.Print("Seleccione opción: ")
+
+		input, _ := reader.ReadString('\n')
+		input = strings.TrimSpace(input)
+
+		switch input {
+		case "1":
+			client = configurarEstudiante(reader)
+		case "2":
+			server = buscarServidores()
+		case "3":
+			if client != nil && server != nil {
+				conectarServidor(client, server)
+			} else {
+				fmt.Println("❌ Primero configure el estudiante y busque servidores")
+			}
+		case "4":
+			mostrarEstado(client)
+		case "5":
+			enviarResultado(client, reader)
+		case "6":
+			desconectar(client)
+		case "7":
+			if client != nil {
+				client.Stop()
+			}
+			fmt.Println("👋 ¡Hasta luego!")
+			return
+		default:
+			fmt.Println("❌ Opción inválida")
+		}
+	}
+}
+
+// Configurar información del estudiante
+func configurarEstudiante(reader *bufio.Reader) *StudentClient {
+	fmt.Print("Nombre del estudiante: ")
+	nombre, _ := reader.ReadString('\n')
+	nombre = strings.TrimSpace(nombre)
+
+	fmt.Print("ID del estudiante: ")
+	id, _ := reader.ReadString('\n')
+	id = strings.TrimSpace(id)
+
+	config := DefaultStudentConfig()
+	config.StudentName = nombre
+	config.StudentID = id
+
+	client, err := NewStudentClient(config)
+	if err != nil {
+		fmt.Printf("❌ Error creando cliente: %v\n", err)
+		return nil
+	}
+
+	fmt.Printf("✅ Cliente configurado para %s (ID: %s)\n", nombre, id)
+	return client
+}
+
+// Buscar servidores disponibles
+func buscarServidores() *ServerInfo {
+	fmt.Println("🔍 Buscando servidores...")
+
+	dm := NewDiscoveryManager()
+	servers, err := dm.DiscoverServers(10 * time.Second)
+	if err != nil {
+		fmt.Printf("❌ Error buscando servidores: %v\n", err)
+		return nil
+	}
+
+	if len(servers) == 0 {
+		fmt.Println("❌ No se encontraron servidores")
+		return nil
+	}
+
+	fmt.Printf("✅ Encontrados %d servidor(es):\n", len(servers))
+	for i, srv := range servers {
+		fmt.Printf("%d. %s (%s:%d) - %s\n",
+			i+1, srv.ServerName, srv.IP, srv.HTTPSPort, srv.Source)
+	}
+
+	// Retornar el mejor servidor
+	return servers[0]
+}
+
+// Conectar al servidor
+func conectarServidor(client *StudentClient, server *ServerInfo) {
+	fmt.Printf("🔗 Conectando a %s...\n", server.ServerName)
+
+	if err := client.ConnectToServer(server); err != nil {
+		fmt.Printf("❌ Error conectando: %v\n", err)
+		return
+	}
+
+	if err := client.Start(); err != nil {
+		fmt.Printf("❌ Error iniciando cliente: %v\n", err)
+		return
+	}
+
+	fmt.Printf("✅ Conectado exitosamente\n")
+}
+
+// Mostrar estado del cliente
+func mostrarEstado(client *StudentClient) {
+	if client == nil {
+		fmt.Println("❌ Cliente no configurado")
+		return
+	}
+
+	info := client.GetClientInfo()
+	server := client.GetServerInfo()
+
+	fmt.Println("\n📊 ESTADO DEL CLIENTE:")
+	fmt.Printf("  Estado: %s\n", client.GetStatus())
+	fmt.Printf("  Conectado: %v\n", client.IsConnected())
+	fmt.Printf("  Estudiante: %s (ID: %s)\n", info.StudentName, info.StudentID)
+	fmt.Printf("  Computador: %s\n", info.ComputerName)
+	fmt.Printf("  IP: %s\n", info.IP)
+	fmt.Printf("  MAC: %s\n", info.MAC)
+	fmt.Printf("  Última actividad: %s\n", info.LastSeen.Format("15:04:05"))
+
+	if server != nil {
+		fmt.Printf("  Servidor: %s (%s:%d)\n", server.ServerName, server.IP, server.HTTPSPort)
+	}
+
+	if info.CurrentExam != "" {
+		fmt.Printf("  Examen actual: %s\n", info.CurrentExam)
+		duration := time.Now().Unix() - info.ExamStartTime
+		fmt.Printf("  Tiempo transcurrido: %d minutos\n", duration/60)
+	}
+}
+
+// Enviar resultado de examen (simulado)
+func enviarResultado(client *StudentClient, reader *bufio.Reader) {
+	if client == nil || !client.IsConnected() {
+		fmt.Println("❌ Cliente no conectado")
+		return
+	}
+
+	fmt.Print("ID del examen: ")
+	examID, _ := reader.ReadString('\n')
+	examID = strings.TrimSpace(examID)
+
+	fmt.Print("Puntuación (0-100): ")
+	score, _ := reader.ReadString('\n')
+	score = strings.TrimSpace(score)
+
+	// Crear resultados simulados
+	results := map[string]interface{}{
+		"score":      score,
+		"answers":    []string{"A", "B", "C", "A", "D"}, // Respuestas simuladas
+		"time_taken": 1800,                              // 30 minutos en segundos
+		"completed":  true,
+	}
+
+	if err := client.SendExamResult(examID, results); err != nil {
+		fmt.Printf("❌ Error enviando resultado: %v\n", err)
+		return
+	}
+
+	fmt.Printf("✅ Resultado enviado para examen %s\n", examID)
+}
+
+// Desconectar cliente
+func desconectar(client *StudentClient) {
+	if client == nil {
+		fmt.Println("❌ Cliente no configurado")
+		return
+	}
+
+	client.Stop()
+	fmt.Println("✅ Cliente desconectado")
+}
+
+// EJEMPLO 5: CLIENTE PARA APLICACIÓN GUI
+func ejemploParaGUI() *ClientController {
+	fmt.Println("=== EJEMPLO 5: CONTROLADOR PARA GUI ===")
+
+	// Este sería usado desde una aplicación GUI
+	controller := NewClientController()
+	return controller
+}
+
+// ClientController - Controlador para aplicaciones GUI
+type ClientController struct {
+	client    *StudentClient
+	servers   []*ServerInfo
+	callbacks ClientCallbacks
+	isRunning bool
+}
+
+// ClientCallbacks - Callbacks para eventos del cliente
+type ClientCallbacks struct {
+	OnConnected    func()
+	OnDisconnected func()
+	OnServerFound  func(*ServerInfo)
+	OnExamAssigned func(string)
+	OnMessage      func(string)
+	OnError        func(error)
+}
+
+// NewClientController crea un nuevo controlador
+func NewClientController() *ClientController {
+	return &ClientController{
+		servers: make([]*ServerInfo, 0),
+	}
+}
+
+// SetCallbacks configura los callbacks
+func (cc *ClientController) SetCallbacks(callbacks ClientCallbacks) {
+	cc.callbacks = callbacks
+}
+
+// ConfigureStudent configura la información del estudiante
+func (cc *ClientController) ConfigureStudent(name, id string) error {
+	config := DefaultStudentConfig()
+	config.StudentName = name
+	config.StudentID = id
+
+	client, err := NewStudentClient(config)
+	if err != nil {
+		if cc.callbacks.OnError != nil {
+			cc.callbacks.OnError(err)
+		}
+		return err
+	}
+
+	cc.client = client
+	return nil
+}
+
+// DiscoverServers busca servidores disponibles
+func (cc *ClientController) DiscoverServers(timeout time.Duration) error {
+	dm := NewDiscoveryManager()
+
+	servers, err := dm.DiscoverServers(timeout)
+	if err != nil {
+		if cc.callbacks.OnError != nil {
+			cc.callbacks.OnError(err)
+		}
+		return err
+	}
+
+	cc.servers = servers
+
+	// Notificar servidores encontrados
+	if cc.callbacks.OnServerFound != nil {
+		for _, server := range servers {
+			cc.callbacks.OnServerFound(server)
+		}
+	}
+
+	return nil
+}
+
+// ConnectToServer conecta a un servidor específico
+func (cc *ClientController) ConnectToServer(serverIndex int) error {
+	if cc.client == nil {
+		return fmt.Errorf("cliente no configurado")
+	}
+
+	if serverIndex < 0 || serverIndex >= len(cc.servers) {
+		return fmt.Errorf("índice de servidor inválido")
+	}
+
+	server := cc.servers[serverIndex]
+
+	if err := cc.client.ConnectToServer(server); err != nil {
+		if cc.callbacks.OnError != nil {
+			cc.callbacks.OnError(err)
+		}
+		return err
+	}
+
+	if err := cc.client.Start(); err != nil {
+		if cc.callbacks.OnError != nil {
+			cc.callbacks.OnError(err)
+		}
+		return err
+	}
+
+	cc.isRunning = true
+
+	if cc.callbacks.OnConnected != nil {
+		cc.callbacks.OnConnected()
+	}
+
+	return nil
+}
+
+// GetStatus retorna el estado actual
+func (cc *ClientController) GetStatus() map[string]interface{} {
+	if cc.client == nil {
+		return map[string]interface{}{
+			"configured": false,
+			"connected":  false,
+			"running":    false,
+		}
+	}
+
+	info := cc.client.GetClientInfo()
+	server := cc.client.GetServerInfo()
+
+	status := map[string]interface{}{
+		"configured":    true,
+		"connected":     cc.client.IsConnected(),
+		"running":       cc.isRunning,
+		"student_name":  info.StudentName,
+		"student_id":    info.StudentID,
+		"computer_name": info.ComputerName,
+		"ip":            info.IP,
+		"current_exam":  info.CurrentExam,
+	}
+
+	if server != nil {
+		status["server_name"] = server.ServerName
+		status["server_ip"] = server.IP
+	}
+
+	return status
+}
+
+// Disconnect desconecta el cliente
+func (cc *ClientController) Disconnect() {
+	if cc.client != nil {
+		cc.client.Stop()
+		cc.isRunning = false
+
+		if cc.callbacks.OnDisconnected != nil {
+			cc.callbacks.OnDisconnected()
+		}
+	}
+}
+
+// FUNCIÓN PRINCIPAL DE EJEMPLO
+func main() {
+	if len(os.Args) < 2 {
+		fmt.Println("Uso: cliente [opción]")
+		fmt.Println("Opciones:")
+		fmt.Println("  basico     - Ejemplo básico")
+		fmt.Println("  descubrir  - Descubrir servidores")
+		fmt.Println("  personal   - Configuración personalizada")
+		fmt.Println("  interactivo - Menú interactivo")
+		fmt.Println("  gui        - Ejemplo para GUI")
+		return
+	}
+
+	switch os.Args[1] {
+	case "basico":
+		ejemploBasico()
+	case "descubrir":
+		ejemploDescubrimiento()
+	case "personal":
+		ejemploPersonalizado()
+	case "interactivo":
+		ejemploInteractivo()
+	case "gui":
+		controller := ejemploParaGUI()
+		fmt.Printf("Controlador GUI creado: %+v\n", controller)
+	default:
+		fmt.Printf("Opción desconocida: %s\n", os.Args[1])
+	}
+}
+
+// Función auxiliar para esperar señales del sistema
+func waitForSignal() {
+	fmt.Println("Cliente ejecutándose... Presione Ctrl+C para salir")
+
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt, syscall.SIGTERM)
+
+	<-c
+	fmt.Println("\n🛑 Señal de interrupción recibida, cerrando cliente...")
 }
