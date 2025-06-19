@@ -331,12 +331,17 @@ func (cm *ClassroomManager) handleClientGoodbye(message *ClientMessage, clientAd
 }
 
 func (cm *ClassroomManager) sendPongResponse(clientAddr *net.UDPAddr, clientID string) {
+	responseAddr := &net.UDPAddr{
+		IP:   clientAddr.IP,
+		Port: 15000,
+	}
+
 	response := &ServerResponse{
-		Type:      "pong",
-		Action:    "heartbeat_ack",
+		Type:      "response",
+		Action:    "pong",
 		Timestamp: time.Now().Unix(),
 	}
-	cm.sendResponse(clientAddr, response)
+	cm.sendResponse(responseAddr, response)
 }
 
 func (cm *ClassroomManager) sendErrorResponse(clientAddr *net.UDPAddr, action, message string) {
