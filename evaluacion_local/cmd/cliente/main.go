@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"math"
 	"net"
 	"net/http"
 	"os"
@@ -107,17 +108,18 @@ type ClientConfig struct {
 
 // ServerInfo información del servidor descubierto
 type ServerInfo struct {
-	ServerName   string    `json:"server_name"`
-	Version      string    `json:"version"`
-	IP           string    `json:"ip"`
-	HTTPPort     int       `json:"http_port"`
-	HTTPSPort    int       `json:"https_port"`
-	UDPPort      int       `json:"udp_port"`
-	ServerID     string    `json:"server_id"`
-	Capabilities []string  `json:"capabilities"`
-	Timestamp    int64     `json:"timestamp"`
-	LastSeen     time.Time `json:"last_seen"`
-	Source       string    `json:"source"` // "mdns" o "udp"
+	ServerName    string    `json:"server_name"`
+	Version       string    `json:"version"`
+	IP            string    `json:"ip"`
+	HTTPPort      int       `json:"http_port"`
+	HTTPSPort     int       `json:"https_port"`
+	UDPPort       int       `json:"udp_port"`
+	UDPServerPort int       `json:"udp_server_port"` // Puerto UDP del servidor
+	ServerID      string    `json:"server_id"`
+	Capabilities  []string  `json:"capabilities"`
+	Timestamp     int64     `json:"timestamp"`
+	LastSeen      time.Time `json:"last_seen"`
+	Source        string    `json:"source"` // "mdns" o "udp"
 }
 
 type ServerResponse struct {
@@ -544,7 +546,7 @@ func DefaultClientConfig() *ClientConfig {
 	return &ClientConfig{
 		MulticastAddr:      "224.0.0.100",
 		MulticastPort:      15000,
-		UDPServerPort:      15001, // Puerto UDP específico del servidor
+		UDPServerPort:      15000, // Puerto UDP específico del servidor
 		MDNSServiceType:    "_evaluacion._tcp",
 		DiscoveryTimeout:   15 * time.Second,
 		EnableMDNS:         false,
@@ -650,32 +652,35 @@ func (dm *DiscoveryManager) ConnectToBestServer(timeout time.Duration) (*ServerI
 		return nil, fmt.Errorf("no se encontraron servidores")
 	}
 
-	// Intentar validar servidores
-	for _, server := range servers {
-		if err := dm.client.ValidateServer(server); err != nil {
-			dm.logger.Printf("Servidor %s falló validación: %v", server.IP, err)
-			continue
+	return servers[0], nil // Retornar el primer servidor encontrado
+
+	/*
+		// Intentar validar servidores
+		for _, server := range servers {
+			if err := dm.client.ValidateServer(server); err != nil {
+				dm.logger.Printf("Servidor %s falló validación: %v", server.IP, err)
+				continue
+			}
+
+			dm.logger.Printf("Conectado a servidor: %s (%s:%d)",
+				server.ServerName, server.IP, server.HTTPSPort)
+			return server, nil
 		}
 
-		dm.logger.Printf("Conectado a servidor: %s (%s:%d)",
-			server.ServerName, server.IP, server.HTTPSPort)
-		return server, nil
-	}
-
-	return nil, fmt.Errorf("ningún servidor pasó la validación")
+		return nil, fmt.Errorf("ningún servidor pasó la validación")*/
 }
 
-// STUDENT CLIENT FUNCTIONS
+// ********** STUDENT CLIENT FUNCTIONS ********** //
 
 func DefaultStudentConfig() *ClientConfig {
 	return &ClientConfig{
 		StudentName:            "", // Se establecerá después
 		StudentID:              "", // Se establecerá después
-		ServerDiscoveryTimeout: 30 * time.Second,
+		ServerDiscoveryTimeout: 15 * time.Second,
 		HeartbeatInterval:      10 * time.Second,
 		MulticastAddr:          "224.0.0.100",
 		MulticastPort:          15000,
-		UDPServerPort:          15001,
+		UDPServerPort:          15000,
 		AutoReconnect:          true,
 		MaxReconnectTries:      5,
 	}
@@ -840,7 +845,7 @@ func (sc *StudentClient) registerWithServer() error {
 	}
 
 	// Crear conexión UDP local para recibir respuestas
-	localAddr, err := net.ResolveUDPAddr("udp", ":0") // Puerto 0 = puerto automático
+	localAddr, err := net.ResolveUDPAddr("udp", ":15000") // Puerto 0 = puerto automático
 	if err != nil {
 		return fmt.Errorf("error resolviendo dirección local: %v", err)
 	}
@@ -1180,13 +1185,12 @@ func (sc *StudentClient) heartbeatLoop() {
 
 // sendHeartbeat envía un heartbeat al servidor
 func (sc *StudentClient) sendHeartbeat() error {
+	// Calcular latencia de red (simplificado)
+	start := time.Now()
+
 	// Actualizar información del cliente
 	sc.clientInfo.LastSeen = time.Now()
 	sc.clientInfo.Status = "connected"
-
-	// Calcular latencia de red (simplificado)
-	start := time.Now()
-	sc.clientInfo.NetworkLatency = int(time.Since(start).Milliseconds())
 
 	message := &ClientMessage{
 		Type:      "heartbeat",
@@ -1201,6 +1205,9 @@ func (sc *StudentClient) sendHeartbeat() error {
 	}
 
 	sc.lastHeartbeat = time.Now()
+
+	sc.clientInfo.NetworkLatency = int(time.Since(start).Milliseconds())
+
 	return nil
 }
 
@@ -1220,6 +1227,10 @@ func (sc *StudentClient) handleConnectionLost() {
 // attemptReconnection intenta reconectar al servidor
 func (sc *StudentClient) attemptReconnection() error {
 	sc.registrationTries++
+
+	// Backoff exponencial
+	waitTime := time.Duration(math.Pow(2, float64(sc.registrationTries))) * time.Second
+	time.Sleep(waitTime)
 
 	// Intentar re-descubrir el servidor
 	if err := sc.rediscoverServer(); err != nil {
@@ -1482,9 +1493,8 @@ func (sc *StudentClient) SendExamResult(examID string, results map[string]interf
 	return nil
 }
 
-// FUNCIONES DE UTILIDAD PRINCIPALES
+// ********** FUNCIONES DE UTILIDAD PRINCIPALES ********** //
 
-// RunStudentClient función principal para ejecutar un cliente estudiante
 // RunStudentClient función principal mejorada para ejecutar un cliente estudiante
 func RunStudentClient(studentName, studentID string) error {
 	fmt.Printf("🚀 Iniciando cliente estudiante...\n")
@@ -1572,7 +1582,7 @@ func connectToServer(client *StudentClient) error {
 	dm := NewDiscoveryManager()
 
 	// Intentar encontrar servidor con timeout
-	server, err := dm.ConnectToBestServer(30 * time.Second)
+	server, err := dm.ConnectToBestServer(client.config.DiscoveryTimeout * time.Second)
 	if err != nil {
 		return fmt.Errorf("no se pudo encontrar servidor: %v", err)
 	}
@@ -1583,11 +1593,13 @@ func connectToServer(client *StudentClient) error {
 	fmt.Printf("   • Versión: %s\n", server.Version)
 	fmt.Printf("   • Fuente: %s\n", server.Source)
 
-	// Validar servidor antes de conectar
-	fmt.Printf("🔍 Validando servidor...\n")
-	if err := dm.client.ValidateServer(server); err != nil {
-		return fmt.Errorf("servidor no pasó validación: %v", err)
-	}
+	/*
+		// Validar servidor antes de conectar
+		fmt.Printf("🔍 Validando servidor...\n")
+		if err := dm.client.ValidateServer(server); err != nil {
+			return fmt.Errorf("servidor no pasó validación: %v", err)
+		}
+	*/
 
 	// Conectar al servidor
 	fmt.Printf("🔗 Conectando al servidor...\n")
@@ -1808,6 +1820,8 @@ func DiscoverAndListServers(timeout time.Duration) error {
 	return nil
 }
 
+// ********** Sección de Ejemplos **********
+
 // EJEMPLO 1: USO BÁSICO - Cliente Simple
 func ejemploBasico() {
 	fmt.Println("=== EJEMPLO 1: USO BÁSICO ===")
@@ -1842,7 +1856,7 @@ func ejemploPersonalizado() {
 		HeartbeatInterval:      5 * time.Second, // Heartbeat más frecuente
 		MulticastAddr:          "224.0.0.100",
 		MulticastPort:          15000,
-		UDPServerPort:          15001,
+		UDPServerPort:          15000,
 		AutoReconnect:          true,
 		MaxReconnectTries:      10,   // Más intentos de reconexión
 		EnableMDNS:             true, // Habilitar mDNS

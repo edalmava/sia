@@ -85,8 +85,8 @@ func NewClassroomManager(server *DiscoveryServer) *ClassroomManager {
 		ctx:           ctx,
 		cancel:        cancel,
 		clientTimeout: 30 * time.Second,
-		maxClients:    40,    // Típico para una sala de informática
-		requireAuth:   false, // Cambiar según necesidades
+		maxClients:    server.config.MaxStudents, // Típico para una sala de informática
+		requireAuth:   false,                     // Cambiar según necesidades
 	}
 }
 
@@ -182,8 +182,8 @@ func (cm *ClassroomManager) processClientMessage(data []byte, clientAddr *net.UD
 		return
 	}
 
-	cm.logger.Printf("Mensaje recibido de %s: Type=%s, Action=%s, ClientID=%s",
-		clientAddr.IP, message.Type, message.Action, message.ClientID)
+	cm.logger.Printf("Mensaje recibido de %s:%d: Type=%s, Action=%s, ClientID=%s",
+		clientAddr.IP, clientAddr.Port, message.Type, message.Action, message.ClientID)
 
 	// Procesar según tipo de mensaje
 	switch message.Type {
@@ -205,20 +205,25 @@ func (cm *ClassroomManager) handleClientHello(message *ClientMessage, clientAddr
 	cm.clientsMutex.Lock()
 	defer cm.clientsMutex.Unlock()
 
+	responseAddr := &net.UDPAddr{
+		IP:   clientAddr.IP,
+		Port: 15000, // Puerto origen del cliente
+	}
+
 	// Verificar si ya tenemos este cliente
 	if existingClient, exists := cm.clients[message.ClientID]; exists {
 		cm.logger.Printf("Cliente %s ya existe, actualizando información", message.ClientID)
 		existingClient.LastSeen = time.Now()
 		existingClient.IP = clientAddr.IP.String()
 		existingClient.Status = "connected"
-		cm.sendWelcomeResponse(clientAddr, message.ClientID, "reconnected")
+		cm.sendWelcomeResponse(responseAddr, message.ClientID, "reconnected")
 		return
 	}
 
 	// Verificar límite de clientes
 	if len(cm.clients) >= cm.maxClients {
 		cm.logger.Printf("Límite de clientes alcanzado (%d), rechazando %s", cm.maxClients, message.ClientID)
-		cm.sendErrorResponse(clientAddr, "classroom_full", "Sala llena, intente más tarde")
+		cm.sendErrorResponse(responseAddr, "classroom_full", "Sala llena, intente más tarde")
 		return
 	}
 
@@ -242,8 +247,22 @@ func (cm *ClassroomManager) handleClientHello(message *ClientMessage, clientAddr
 		client.ComputerName, client.StudentName, client.IP)
 
 	// Enviar respuesta de bienvenida
-	cm.sendWelcomeResponse(clientAddr, message.ClientID, "welcome")
+	cm.sendWelcomeResponse(responseAddr, message.ClientID, "welcome")
 }
+
+// Funciones de respuesta
+func (cm *ClassroomManager) sendWelcomeResponse(clientAddr *net.UDPAddr, clientID, action string) {
+	response := &ServerResponse{
+		Type:       "response",
+		Action:     action,
+		Message:    fmt.Sprintf("Bienvenido a %s", cm.server.config.ServerName),
+		ServerInfo: cm.server.GetServerInfo(),
+		Timestamp:  time.Now().Unix(),
+	}
+	cm.sendResponse(clientAddr, response)
+}
+
+// TODO: Voy acá en la revisión del código
 
 // handleClientHeartbeat maneja los mensajes de heartbeat
 func (cm *ClassroomManager) handleClientHeartbeat(message *ClientMessage, clientAddr *net.UDPAddr) {
@@ -311,18 +330,6 @@ func (cm *ClassroomManager) handleClientGoodbye(message *ClientMessage, clientAd
 	}
 }
 
-// Funciones de respuesta
-func (cm *ClassroomManager) sendWelcomeResponse(clientAddr *net.UDPAddr, clientID, action string) {
-	response := &ServerResponse{
-		Type:       "welcome",
-		Action:     action,
-		Message:    fmt.Sprintf("Bienvenido a %s", cm.server.config.ServerName),
-		ServerInfo: cm.server.GetServerInfo(),
-		Timestamp:  time.Now().Unix(),
-	}
-	cm.sendResponse(clientAddr, response)
-}
-
 func (cm *ClassroomManager) sendPongResponse(clientAddr *net.UDPAddr, clientID string) {
 	response := &ServerResponse{
 		Type:      "pong",
@@ -370,16 +377,31 @@ func (cm *ClassroomManager) sendResponse(clientAddr *net.UDPAddr, response *Serv
 	if err != nil {
 		cm.logger.Printf("Error enviando respuesta: %v", err)
 	}
+
+	/*
+		// Enviar usando el listener UDP ya existente
+		_, err = cm.udpListener.WriteToUDP(data, clientAddr)
+		if err != nil {
+			cm.logger.Printf("Error enviando respuesta UDP: %v", err)
+		} else {
+			cm.logger.Printf("Respuesta enviada a %s:%d -> %s/%s", clientAddr.IP, clientAddr.Port, response.Type, response.Action)
+		}
+	*/
+
+	cm.logger.Printf("Enviando respuesta a %s:%d -> Tipo=%s, Acción=%s, Mensaje=%s",
+		clientAddr.IP.String(), clientAddr.Port, response.Type, response.Action, response.Message)
 }
 
-// calculateLatency calcula la latencia de red (simulado por simplicidad)
+// calculateLatency calcula la latencia de red
 func (cm *ClassroomManager) calculateLatency(clientAddr *net.UDPAddr) int {
-	// En implementación real, podrías hacer ping o medir tiempo de respuesta
-	// Por ahora retornamos un valor simulado basado en la red local
-	if clientAddr.IP.IsLoopback() {
-		return 1
+	start := time.Now()
+	// Implementar ping real o medición de respuesta
+	conn, err := net.DialTimeout("udp", clientAddr.String(), 1*time.Second)
+	if err != nil {
+		return -1
 	}
-	return 5 // ms típico en red local
+	defer conn.Close()
+	return int(time.Since(start).Milliseconds())
 }
 
 // clientCleanupLoop limpia clientes inactivos periódicamente

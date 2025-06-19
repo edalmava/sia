@@ -21,7 +21,7 @@ type DiscoveryServer struct {
 	config       *ServerConfig
 	mdnsServer   *zeroconf.Server
 	udpConn      *net.UDPConn
-	classroomMgr *ClassroomManager // Nueva línea
+	classroomMgr *ClassroomManager
 	running      bool
 	wg           sync.WaitGroup
 	ctx          context.Context
@@ -32,6 +32,9 @@ type DiscoveryServer struct {
 
 // ServerConfig contiene la configuración del servidor
 type ServerConfig struct {
+	Institution        string        `json:"institution"`
+	Classroom          string        `json:"classroom"`
+	MaxStudents        int           `json:"max_students"`
 	ServerName         string        `json:"server_name"`
 	HTTPPort           int           `json:"http_port"`
 	HTTPSPort          int           `json:"https_port"`
@@ -52,6 +55,7 @@ type ServerInfo struct {
 	IP           string   `json:"ip"`
 	HTTPPort     int      `json:"http_port"`
 	HTTPSPort    int      `json:"https_port"`
+	UDPPort      int      `json:"udp_port"` // Puerto UDP del servidor
 	Timestamp    int64    `json:"timestamp"`
 	ServerID     string   `json:"server_id"`
 	Capabilities []string `json:"capabilities"`
@@ -66,6 +70,55 @@ type UDPMessage struct {
 	Data      *ServerInfo `json:"data"`
 	Signature string      `json:"signature,omitempty"`
 }
+
+// ********** Configuración del servidor ********** //
+
+// DefaultConfig retorna una configuración por defecto
+func DefaultConfig() *ServerConfig {
+	return &ServerConfig{
+		Institution:        "EdalmavaSoft",
+		Classroom:          "Sala de Informática",
+		MaxStudents:        45,
+		ServerName:         "Servidor Evaluaciones EdalmavaSoft",
+		HTTPPort:           8080,
+		HTTPSPort:          8443,
+		MulticastAddr:      "224.0.0.100",
+		MulticastPort:      15000,
+		MDNSServiceType:    "_evaluacion._tcp",
+		BroadcastInterval:  5 * time.Second,
+		EnableMDNS:         false,
+		EnableUDPMulticast: true,
+	}
+}
+
+// LoadConfig carga configuración desde archivo JSON
+func LoadConfig(filename string) (*ServerConfig, error) {
+	data, err := os.ReadFile(filename)
+	if err != nil {
+		return nil, fmt.Errorf("error leyendo archivo de configuración: %v", err)
+	}
+
+	config := &ServerConfig{}
+	if err := json.Unmarshal(data, config); err != nil {
+		return nil, fmt.Errorf("error parseando configuración JSON: %v", err)
+	}
+
+	return config, nil
+}
+
+// SaveConfig guarda configuración a archivo JSON
+func SaveConfig(config *ServerConfig, filename string) error {
+	data, err := json.MarshalIndent(config, "", "  ")
+	if err != nil {
+		return fmt.Errorf("error serializando configuración: %v", err)
+	}
+
+	return os.WriteFile(filename, data, 0644)
+}
+
+// ********** Fin sección de configuración del servidor ********** //
+
+// ************** Implementación del DiscoveryServer ********** //
 
 // NewDiscoveryServer crea una nueva instancia del servidor de descubrimiento
 func NewDiscoveryServer(config *ServerConfig) (*DiscoveryServer, error) {
@@ -84,6 +137,7 @@ func NewDiscoveryServer(config *ServerConfig) (*DiscoveryServer, error) {
 		IP:           localIP,
 		HTTPPort:     config.HTTPPort,
 		HTTPSPort:    config.HTTPSPort,
+		UDPPort:      config.MulticastPort,
 		ServerID:     generateServerID(),
 		Capabilities: []string{"evaluation", "auth", "monitoring"},
 	}
@@ -98,6 +152,37 @@ func NewDiscoveryServer(config *ServerConfig) (*DiscoveryServer, error) {
 		logger:     logger,
 		serverInfo: serverInfo,
 	}, nil
+}
+
+// getLocalIP obtiene la IP local principal
+func getLocalIP() (string, error) {
+	conn, err := net.Dial("udp", "8.8.8.8:80")
+	if err != nil {
+		return "", err
+	}
+	defer conn.Close()
+
+	localAddr := conn.LocalAddr().(*net.UDPAddr)
+	return localAddr.IP.String(), nil
+}
+
+// generateServerID genera un ID único para el servidor
+func generateServerID() string {
+	hostname, _ := os.Hostname()
+	timestamp := time.Now().Unix()
+	return fmt.Sprintf("%s-%d", hostname, timestamp)
+}
+
+// GetServerInfo retorna la información actual del servidor
+func (ds *DiscoveryServer) GetServerInfo() *ServerInfo {
+	ds.serverInfo.Timestamp = time.Now().Unix()
+	return ds.serverInfo
+}
+
+// UpdateServerInfo actualiza la información del servidor
+func (ds *DiscoveryServer) UpdateServerInfo(info *ServerInfo) {
+	ds.serverInfo = info
+	ds.logger.Printf("Información del servidor actualizada")
 }
 
 // Start inicia los servicios de descubrimiento
@@ -140,6 +225,47 @@ func (ds *DiscoveryServer) Start() error {
 
 	return nil
 }
+
+// Stop detiene todos los servicios de descubrimiento
+func (ds *DiscoveryServer) Stop() error {
+	if !ds.running {
+		return nil
+	}
+
+	ds.logger.Printf("Deteniendo servidor de descubrimiento...")
+	ds.running = false
+
+	// Cancelar contexto para detener goroutines
+	ds.cancel()
+
+	// Detener classroom manager
+	if ds.classroomMgr != nil {
+		ds.classroomMgr.Stop()
+		ds.logger.Printf("Classroom manager detenido")
+	}
+
+	// Detener mDNS
+	if ds.mdnsServer != nil {
+		ds.mdnsServer.Shutdown()
+		ds.logger.Printf("Servicio mDNS detenido")
+	}
+
+	// Cerrar conexión UDP
+	if ds.udpConn != nil {
+		ds.udpConn.Close()
+		ds.logger.Printf("Conexión UDP cerrada")
+	}
+
+	// Esperar que terminen las goroutines
+	ds.wg.Wait()
+
+	ds.logger.Printf("Servidor de descubrimiento detenido completamente")
+	return nil
+}
+
+// ********** Fin sección de implementacion del servidor de descubrimiento ********** //
+
+// ************ Implementación de mDNS y UDP multicast ********** //
 
 // startMDNS inicia el servicio mDNS
 func (ds *DiscoveryServer) startMDNS() error {
@@ -244,113 +370,11 @@ func (ds *DiscoveryServer) sendUDPBroadcast() {
 	ds.logger.Printf("Broadcast UDP enviado: %s", ds.serverInfo.ServerName)
 }
 
-// Stop detiene todos los servicios de descubrimiento
-func (ds *DiscoveryServer) Stop() error {
-	if !ds.running {
-		return nil
-	}
+// ********** Fin sección de implementación de mDNS y UDP multicast ********** //
 
-	ds.logger.Printf("Deteniendo servidor de descubrimiento...")
-	ds.running = false
+// ********** Implementación del ClassroomManager ********** //
 
-	// Cancelar contexto para detener goroutines
-	ds.cancel()
-
-	// Detener classroom manager
-	if ds.classroomMgr != nil {
-		ds.classroomMgr.Stop()
-		ds.logger.Printf("Classroom manager detenido")
-	}
-
-	// Detener mDNS
-	if ds.mdnsServer != nil {
-		ds.mdnsServer.Shutdown()
-		ds.logger.Printf("Servicio mDNS detenido")
-	}
-
-	// Cerrar conexión UDP
-	if ds.udpConn != nil {
-		ds.udpConn.Close()
-		ds.logger.Printf("Conexión UDP cerrada")
-	}
-
-	// Esperar que terminen las goroutines
-	ds.wg.Wait()
-
-	ds.logger.Printf("Servidor de descubrimiento detenido completamente")
-	return nil
-}
-
-// GetServerInfo retorna la información actual del servidor
-func (ds *DiscoveryServer) GetServerInfo() *ServerInfo {
-	ds.serverInfo.Timestamp = time.Now().Unix()
-	return ds.serverInfo
-}
-
-// UpdateServerInfo actualiza la información del servidor
-func (ds *DiscoveryServer) UpdateServerInfo(info *ServerInfo) {
-	ds.serverInfo = info
-	ds.logger.Printf("Información del servidor actualizada")
-}
-
-// getLocalIP obtiene la IP local principal
-func getLocalIP() (string, error) {
-	conn, err := net.Dial("udp", "8.8.8.8:80")
-	if err != nil {
-		return "", err
-	}
-	defer conn.Close()
-
-	localAddr := conn.LocalAddr().(*net.UDPAddr)
-	return localAddr.IP.String(), nil
-}
-
-// generateServerID genera un ID único para el servidor
-func generateServerID() string {
-	hostname, _ := os.Hostname()
-	timestamp := time.Now().Unix()
-	return fmt.Sprintf("%s-%d", hostname, timestamp)
-}
-
-// DefaultConfig retorna una configuración por defecto
-func DefaultConfig() *ServerConfig {
-	return &ServerConfig{
-		ServerName:         "Servidor Evaluaciones EdalmavaSoft",
-		HTTPPort:           8080,
-		HTTPSPort:          8443,
-		MulticastAddr:      "224.0.0.100",
-		MulticastPort:      15000,
-		MDNSServiceType:    "_evaluacion._tcp",
-		BroadcastInterval:  5 * time.Second,
-		EnableMDNS:         true,
-		EnableUDPMulticast: true,
-	}
-}
-
-// LoadConfig carga configuración desde archivo JSON
-func LoadConfig(filename string) (*ServerConfig, error) {
-	data, err := os.ReadFile(filename)
-	if err != nil {
-		return nil, fmt.Errorf("error leyendo archivo de configuración: %v", err)
-	}
-
-	config := &ServerConfig{}
-	if err := json.Unmarshal(data, config); err != nil {
-		return nil, fmt.Errorf("error parseando configuración JSON: %v", err)
-	}
-
-	return config, nil
-}
-
-// SaveConfig guarda configuración a archivo JSON
-func SaveConfig(config *ServerConfig, filename string) error {
-	data, err := json.MarshalIndent(config, "", "  ")
-	if err != nil {
-		return fmt.Errorf("error serializando configuración: %v", err)
-	}
-
-	return os.WriteFile(filename, data, 0644)
-}
+// TODO: Voy acá en la revisión del código
 
 func (ds *DiscoveryServer) GetConnectedStudents() map[string]*ClientInfo {
 	if ds.classroomMgr == nil {
