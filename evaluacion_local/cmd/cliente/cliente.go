@@ -145,7 +145,7 @@ func (sc *StudentClient) Start() error {
 		return fmt.Errorf("error conectando al servidor: %v", err)
 	}
 
-	// Fase 3: Iniciar heartbeat
+	// Fase 3: Iniciar heartbeat DESPUÉS de conectar
 	go sc.heartbeatLoop()
 
 	// Fase 4: Escuchar respuestas del servidor
@@ -249,8 +249,16 @@ func (sc *StudentClient) selectAndConnect() error {
 
 	sc.serverConn = conn
 
-	// Enviar mensaje de registro (hello)
-	return sc.sendHelloMessage()
+	// Enviar mensaje de registro (hello) y establecer estado
+	if err := sc.sendHelloMessage(); err != nil {
+		return err
+	}
+
+	// Cambiar estado a connecting mientras esperamos respuesta
+	sc.status = "connecting"
+	sc.logger.Printf("Estado cambiado a: connecting")
+
+	return nil
 }
 
 // sendHelloMessage envía el mensaje de registro inicial
@@ -260,7 +268,7 @@ func (sc *StudentClient) sendHelloMessage() error {
 		ComputerName:  sc.computerName,
 		StudentName:   sc.studentName,
 		StudentID:     sc.studentID,
-		Status:        "connected",
+		Status:        "connecting", // Estado inicial
 		ComputerSpecs: sc.getComputerSpecs(),
 	}
 
@@ -308,34 +316,53 @@ func (sc *StudentClient) sendMessage(message *ClientMessage) error {
 
 // heartbeatLoop mantiene la conexión con heartbeats periódicos
 func (sc *StudentClient) heartbeatLoop() {
+	sc.logger.Printf("🔄 Iniciando heartbeat loop...")
 	ticker := time.NewTicker(15 * time.Second)
 	defer ticker.Stop()
 
 	for {
 		select {
 		case <-sc.ctx.Done():
+			sc.logger.Printf("🔄 Heartbeat loop terminado por contexto")
 			return
 		case <-ticker.C:
-			if sc.status == "connected" || sc.status == "in_exam" {
-				sc.sendHeartbeat()
+			sc.logger.Printf("🔄 Heartbeat tick - Estado actual: %s", sc.status)
+
+			// CORECCIÓN: Incluir más estados válidos para heartbeat
+			if sc.status == "connected" || sc.status == "in_exam" || sc.status == "idle" || sc.status == "connecting" {
+				if err := sc.sendHeartbeat(); err != nil {
+					sc.logger.Printf("❌ Error enviando heartbeat: %v", err)
+				} else {
+					sc.logger.Printf("💓 Heartbeat enviado exitosamente")
+				}
+			} else {
+				sc.logger.Printf("⏸️  Heartbeat omitido - Estado: %s", sc.status)
 			}
 		}
 	}
 }
 
 // sendHeartbeat envía un mensaje de heartbeat
-func (sc *StudentClient) sendHeartbeat() {
+func (sc *StudentClient) sendHeartbeat() error {
+	// Crear información básica del cliente para el heartbeat
+	clientInfo := &ClientInfo{
+		ClientID:     sc.clientID,
+		ComputerName: sc.computerName,
+		StudentName:  sc.studentName,
+		StudentID:    sc.studentID,
+		Status:       sc.status,
+		LastSeen:     time.Now(),
+	}
+
 	message := &ClientMessage{
 		Type:      "heartbeat",
 		Action:    "ping",
 		ClientID:  sc.clientID,
-		Data:      nil,
+		Data:      clientInfo, // CORECCIÓN: Incluir datos del cliente
 		Timestamp: time.Now().Unix(),
 	}
 
-	if err := sc.sendMessage(message); err != nil {
-		sc.logger.Printf("Error enviando heartbeat: %v", err)
-	}
+	return sc.sendMessage(message)
 }
 
 // listenServerResponses escucha las respuestas del servidor
@@ -386,14 +413,16 @@ func (sc *StudentClient) processServerResponse(data []byte) {
 func (sc *StudentClient) handleServerResponse(response *ServerResponse) {
 	switch response.Action {
 	case "welcome", "reconnected":
-		sc.status = "connected"
+		sc.status = "connected" // CORECCIÓN: Asegurar cambio de estado
 		sc.logger.Printf("✅ Conectado exitosamente: %s", response.Message)
+		sc.logger.Printf("🔄 Estado actualizado a: %s", sc.status)
 		if response.ServerInfo != nil {
 			sc.logger.Printf("Servidor: %s - Estudiantes máximos: %d",
 				response.ServerInfo.ServerName, response.ServerInfo.MaxStudents)
 		}
 	case "pong":
-		// Heartbeat confirmado, no hacer nada
+		sc.logger.Printf("🏓 Pong recibido del servidor")
+		// Heartbeat confirmado, mantener estado actual
 	default:
 		sc.logger.Printf("Respuesta del servidor: %s - %s", response.Action, response.Message)
 	}
@@ -416,9 +445,11 @@ func (sc *StudentClient) handleServerError(response *ServerResponse) {
 
 // UpdateStatus actualiza el estado del cliente
 func (sc *StudentClient) UpdateStatus(newStatus, examName string) error {
+	oldStatus := sc.status
 	sc.status = newStatus
 
 	clientInfo := &ClientInfo{
+		ClientID:    sc.clientID,
 		Status:      newStatus,
 		CurrentExam: examName,
 	}
@@ -435,7 +466,7 @@ func (sc *StudentClient) UpdateStatus(newStatus, examName string) error {
 		Timestamp: time.Now().Unix(),
 	}
 
-	sc.logger.Printf("Actualizando estado a: %s", newStatus)
+	sc.logger.Printf("🔄 Actualizando estado: %s -> %s", oldStatus, newStatus)
 	return sc.sendMessage(message)
 }
 
@@ -544,7 +575,7 @@ func main() {
 
 	// Simular algunos cambios de estado para demostración
 	go func() {
-		time.Sleep(20 * time.Second)
+		time.Sleep(25 * time.Second) // Esperar más tiempo para asegurar conexión
 		if client.status == "connected" {
 			client.UpdateStatus("idle", "")
 			log.Printf("Estado cambiado a: idle")
